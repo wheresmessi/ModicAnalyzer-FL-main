@@ -42,8 +42,8 @@ class WelcomeActivity : ComponentActivity() {
         setContent {
             com.example.modicanalyzer.ui.theme.ModicAnalyzerTheme(dynamicColor = false) {
                 WelcomeScreen {
-                    // Navigate to main activity after animation
-                    startActivity(Intent(this@WelcomeActivity, SimpleMainActivity::class.java))
+                    // Navigate to login activity after animation
+                    startActivity(Intent(this@WelcomeActivity, LoginActivity::class.java))
                     finish()
                 }
             }
