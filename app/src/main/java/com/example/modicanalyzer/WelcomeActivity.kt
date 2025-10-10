@@ -144,7 +144,7 @@ fun WelcomeScreen(onAnimationComplete: () -> Unit) {
             
             // App title with animation
             Text(
-                text = "ModicAnalyzer",
+                text = "SpinoCare",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,

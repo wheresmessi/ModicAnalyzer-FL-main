@@ -166,7 +166,7 @@ fun MainScreen(classifier: ModicClassifier, flManager: FederatedLearningManager)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            "ModicAnalyzer",
+                            "SpinoCare",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -375,14 +375,6 @@ fun AnimatedStatusIndicator() {
             repeatMode = RepeatMode.Reverse
         )
     )
-    
-    Box(
-        modifier = Modifier
-            .padding(end = 16.dp)
-            .size(12.dp)
-            .clip(CircleShape)
-            .background(Color(0xFF10B981).copy(alpha = alpha))
-    )
 }
 
 @Composable
@@ -441,14 +433,16 @@ fun ModernHeaderCard() {
 
 @Composable
 fun ModernStatusCard() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = com.example.modicanalyzer.ui.theme.ModicareSecondary.copy(alpha = 0.2f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, com.example.modicanalyzer.ui.theme.ModicareAccent.copy(alpha = 0.3f))
+    // Use a Box with rounded border only to avoid background fill and elevation halo
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = com.example.modicanalyzer.ui.theme.ModicareAccent.copy(alpha = 0.3f),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .clip(RoundedCornerShape(16.dp))
     ) {
         Row(
             modifier = Modifier.padding(20.dp),
@@ -622,16 +616,18 @@ fun ModernAnalysisButton(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
+            .navigationBarsPadding()
+            .height(56.dp)
             .scale(buttonScale),
         enabled = isEnabled,
         colors = ButtonDefaults.buttonColors(
-            containerColor = com.example.modicanalyzer.ui.theme.ModicarePrimary,
+            // use a slightly softer accent so the button doesn't read as a full-width 'bar'
+            containerColor = com.example.modicanalyzer.ui.theme.ModicareAccent.copy(alpha = 0.92f),
             disabledContainerColor = com.example.modicanalyzer.ui.theme.ModicarePrimary.copy(alpha = 0.5f)
         ),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         elevation = ButtonDefaults.buttonElevation(
-            defaultElevation = if (isEnabled) 8.dp else 2.dp
+            defaultElevation = if (isEnabled) 6.dp else 2.dp
         )
     ) {
         if (isAnalyzing) {

@@ -107,14 +107,20 @@ fun ModicGuideScreen() {
 
 @Composable
 fun ModicOverviewCard() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = com.example.modicanalyzer.ui.theme.ModicareSecondary.copy(alpha = 0.2f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, com.example.modicanalyzer.ui.theme.ModicareAccent.copy(alpha = 0.3f))
+    // Use a Box with a pale background and rounded border to avoid elevation halo
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = com.example.modicanalyzer.ui.theme.ModicareSecondary.copy(alpha = 0.18f),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .border(
+                width = 1.dp,
+                color = com.example.modicanalyzer.ui.theme.ModicareAccent.copy(alpha = 0.3f),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .clip(RoundedCornerShape(16.dp))
     ) {
         Column(
             modifier = Modifier.padding(20.dp)

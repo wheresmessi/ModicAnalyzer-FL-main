@@ -21,5 +21,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ModicAnalyzer"
+rootProject.name = "SpinoCare"
 include(":app")

@@ -37,21 +37,23 @@ fun ProfileScreen() {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            // Profile Header
+            // Profile Header: avatar on left, details fill right
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                 shape = RoundedCornerShape(20.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Profile Picture Placeholder
+                    // Left: avatar column that occupies a fixed width
                     Box(
                         modifier = Modifier
-                            .size(80.dp)
+                            .size(96.dp)
                             .clip(CircleShape)
                             .background(
                                 Brush.radialGradient(
@@ -67,66 +69,77 @@ fun ProfileScreen() {
                             Icons.Default.Person,
                             contentDescription = null,
                             tint = com.example.modicanalyzer.ui.theme.ModicarePrimary,
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.size(44.dp)
                         )
                     }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Text(
-                        "Dr. John Doe",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = com.example.modicanalyzer.ui.theme.ModicarePrimaryVariant
-                    )
-                    
-                    Text(
-                        "Radiologist",
-                        fontSize = 16.sp,
-                        color = com.example.modicanalyzer.ui.theme.ModicareAccent
-                    )
-                    
-                    Text(
-                        "City General Hospital",
-                        fontSize = 14.sp,
-                        color = com.example.modicanalyzer.ui.theme.TextSecondary
-                    )
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    // Right: name and details, take remaining space
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Dr. John Doe",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = com.example.modicanalyzer.ui.theme.ModicarePrimaryVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Text(
+                            "Radiologist",
+                            fontSize = 16.sp,
+                            color = com.example.modicanalyzer.ui.theme.ModicareAccent
+                        )
+
+                        Text(
+                            "City General Hospital",
+                            fontSize = 14.sp,
+                            color = com.example.modicanalyzer.ui.theme.TextSecondary
+                        )
+                    }
                 }
             }
         }
         
         item {
-            // Statistics Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = com.example.modicanalyzer.ui.theme.ModicareSecondary.copy(alpha = 0.2f)
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp)
+            // Statistics Card replaced with a Box + pale background + border to avoid elevation halo
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            color = com.example.modicanalyzer.ui.theme.ModicareSecondary.copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = com.example.modicanalyzer.ui.theme.ModicareAccent.copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        .clip(RoundedCornerShape(16.dp))
                 ) {
-                    Text(
-                        "Usage Statistics",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = com.example.modicanalyzer.ui.theme.ModicarePrimaryVariant
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
+                    Column(
+                        modifier = Modifier.padding(20.dp)
                     ) {
-                        StatisticItem("42", "Analyses", Icons.Default.Check)
-                        StatisticItem("18", "This Month", Icons.Default.DateRange)
-                        StatisticItem("94%", "Accuracy", Icons.Default.CheckCircle)
+                        Text(
+                            "Usage Statistics",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = com.example.modicanalyzer.ui.theme.ModicarePrimaryVariant
+                        )
+                    
+                        Spacer(modifier = Modifier.height(16.dp))
+                    
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            StatisticItem("42", "Analyses", Icons.Default.Check)
+                            StatisticItem("18", "This Month", Icons.Default.DateRange)
+                            StatisticItem("94%", "Accuracy", Icons.Default.CheckCircle)
+                        }
                     }
                 }
-            }
         }
         
         item {

@@ -1,13 +1,13 @@
-# Modicare
+# SpinoCare
 
-An AI-powered Android application that uses TensorFlow Lite to analyze MRI images for Modic changes in the spine.
+SpinoCare is an AI-powered Android application that uses TensorFlow Lite to analyze MRI images for Modic changes in the spine and help clinicians identify spinal imaging findings.
 
 ## Features
 
 - **T1/T2 Image Analysis**: Select T1 and T2 MRI images for comprehensive analysis
-- **AI Analysis**: Uses TensorFlow Lite model to detect Modic changes
+- **AI Analysis**: Uses a TensorFlow Lite model to detect Modic changes
 - **Confidence Scores**: Shows detailed analysis results with confidence percentages
-- **Modern UI**: Built with Jetpack Compose featuring Modicare branding
+- **Modern UI**: Built with Jetpack Compose featuring SpinoCare branding
 - **Smart Combination**: Analyzes both images and provides combined results
 
 ## How to Use
@@ -22,11 +22,11 @@ An AI-powered Android application that uses TensorFlow Lite to analyze MRI image
 
 ## Technical Details
 
-- **Model**: TensorFlow Lite model (`modic_model.tflite`)
+- **Model**: TensorFlow Lite model (e.g. `modic_model.tflite`)
 - **Input Size**: 224x224 pixels (configurable in `ModicModelHandler.kt`)
 - **Analysis Method**: T1/T2 image analysis with smart result combination
 - **Framework**: Jetpack Compose + Kotlin
-- **Design**: Modicare branding with coral/red accent colors
+- **Design**: SpinoCare branding with coral/red accent colors
 - **Minimum SDK**: Android API 24 (Android 7.0)
 
 ## Project Structure

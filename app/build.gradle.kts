@@ -82,3 +82,10 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
+
+// Compatibility: some CI or tooling may request ':app:testClasses' which isn't present
+// in Android modules. Register a safe no-op task to avoid failures.
+tasks.register("testClasses") {
+    // This task intentionally left blank. It prevents external tooling from failing
+    // when they try to query or execute ':app:testClasses'.
+}

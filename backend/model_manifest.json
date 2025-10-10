@@ -1,0 +1,20 @@
+{
+  "keras_model": {
+    "path": "final_model.keras",
+    "exists": true,
+    "size_mb": 196.98,
+    "input_shape": "[(None, 224, 224, 3), (None, 224, 224, 3)]",
+    "output_shape": "(None, 2)",
+    "parameters": 25751298
+  },
+  "global_tflite": {
+    "path": "global_model.tflite",
+    "exists": true,
+    "size_mb": 49.01
+  },
+  "client_tflite": {
+    "path": "app\\src\\main\\assets\\modic_model.tflite",
+    "exists": true,
+    "size_mb": 49.01
+  }
+}
