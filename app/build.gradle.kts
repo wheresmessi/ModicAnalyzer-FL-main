@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    kotlin("plugin.serialization") version "2.0.21"
 }
 
 android {
@@ -60,8 +61,11 @@ dependencies {
     // Task API for official async pattern
     implementation("com.google.android.gms:play-services-tasks:18.0.2")
     
-    // HTTP client for federated learning
+    // HTTP client for federated learning and remote inference
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    
+    // JSON serialization for API communication
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
     
     // Core library desugaring for better API compatibility
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")

@@ -34,32 +34,33 @@ SpinoCare is an AI-powered Android application that uses TensorFlow Lite to anal
 ```
 app/
 ├── src/main/
-│   ├── assets/
-│   │   └── modic_model.tflite          # Your trained TensorFlow Lite model
+│   ├── assets/                         # Empty - models now downloaded on-demand
 │   ├── java/com/example/modicanalyzer/
-│   │   ├── MainActivity.kt             # Main UI with Compose
-│   │   ├── ModicModelHandler.kt        # TensorFlow Lite model wrapper
-│   │   └── ImageUtils.kt               # Image processing utilities
-│   └── AndroidManifest.xml             # App permissions and configuration
+│   │   ├── SimpleMainActivity.kt       # Main UI with hybrid online/offline system
+│   │   ├── ModicAnalyzer.kt           # Unified analyzer (online/offline switching)
+│   │   ├── RemoteModelAnalyzer.kt     # Remote server inference
+│   │   ├── LocalModelAnalyzer.kt      # Local TFLite inference
+│   │   ├── SettingsActivity.kt        # User settings for inference mode
+│   │   └── ImageUtils.kt              # Image processing utilities
+│   └── AndroidManifest.xml            # App permissions and configuration
 ```
 
 ## Model Requirements
 
-The app expects a TensorFlow Lite model with:
-- **Input**: 224x224x3 RGB image
+The app now uses a hybrid online/offline architecture:
+- **Online Mode**: Remote inference via FastAPI server (default)
+- **Offline Mode**: Local TensorFlow Lite model (user-downloadable, 49MB)
+- **Model Format**: 224x224x3 RGB dual-input (T1 + T2 weighted MRI)
 - **Output**: 2-class probability array [No Modic, Modic Change]
-
-If your model has different specifications, update the constants in `ModicModelHandler.kt`:
-- `inputSize`: Change to match your model's expected input dimensions
-- `numClasses`: Adjust if you have more than 2 classes
 
 ## Building and Running
 
 1. Open the project in Android Studio
-2. Ensure you have placed your `modic_model.tflite` file in `app/src/main/assets/`
+2. **No model setup required** - models are downloaded on-demand
 3. Build and run the project on a device or emulator
-4. Grant storage permissions when prompted
-5. Select an MRI image to analyze
+4. Use Settings to switch between online/offline modes
+5. Grant storage and internet permissions when prompted
+6. Select T1 and T2 weighted MRI images to analyze
 
 ## Permissions
 

@@ -13,7 +13,7 @@ import java.util.concurrent.Executors
  */
 class FederatedLearningManager(
     private val context: Context,
-    private val serverUrl: String = "https://modic-fl-server.onrender.com" // Your live Render server
+    private val serverUrl: String = "http://10.0.2.2:8000" // Local development server
 ) {
     private val flClient = FederatedLearningClient(context, serverUrl)
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
