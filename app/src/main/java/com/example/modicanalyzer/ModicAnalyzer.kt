@@ -32,15 +32,54 @@ class ModicAnalyzer(private val context: Context) {
      * Initialize automatic model updates when network is available
      */
     fun initializeAutoUpdates() {
+        // Check if model file already exists but preference isn't set
+        if (LocalModelAnalyzer.isModelFileAvailable(context) && !prefs.getBoolean(PREF_MODEL_DOWNLOADED, false)) {
+            markModelDownloaded()
+            Log.d(TAG, "Found existing model file, marked as downloaded")
+        }
+        
+        // Initialize with null listener to set up the internal tracking
+        setModelUpdateListener(null)
         modelUpdateManager.startPeriodicUpdateCheck()
         Log.d(TAG, "Automatic model updates initialized")
     }
+    
+    private var externalListener: ModelUpdateManager.ModelUpdateListener? = null
     
     /**
      * Set model update listener
      */
     fun setModelUpdateListener(listener: ModelUpdateManager.ModelUpdateListener?) {
-        modelUpdateManager.setUpdateListener(listener)
+        externalListener = listener
+        // Create a composite listener that handles both internal and external callbacks
+        val compositeListener = object : ModelUpdateManager.ModelUpdateListener {
+            override fun onUpdateCheckStarted() {
+                externalListener?.onUpdateCheckStarted()
+            }
+            override fun onUpdateAvailable(newVersion: String, sizeMB: Double) {
+                externalListener?.onUpdateAvailable(newVersion, sizeMB)
+            }
+            override fun onDownloadStarted() {
+                externalListener?.onDownloadStarted()
+            }
+            override fun onDownloadProgress(progress: Int) {
+                externalListener?.onDownloadProgress(progress)
+            }
+            override fun onDownloadCompleted(success: Boolean) {
+                if (success) {
+                    markModelDownloaded()
+                    Log.d(TAG, "Model marked as downloaded after successful update")
+                }
+                externalListener?.onDownloadCompleted(success)
+            }
+            override fun onNoUpdateNeeded() {
+                externalListener?.onNoUpdateNeeded()
+            }
+            override fun onUpdateError(error: String) {
+                externalListener?.onUpdateError(error)
+            }
+        }
+        modelUpdateManager.setUpdateListener(compositeListener)
     }
     
     /**
