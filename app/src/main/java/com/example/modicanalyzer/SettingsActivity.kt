@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,9 +51,7 @@ fun SettingsScreen(
 ) {
     var isOfflineMode by remember { mutableStateOf(analyzer.isOfflineModeEnabled()) }
     var isModelAvailable by remember { mutableStateOf(analyzer.isLocalModelAvailable()) }
-    var isDownloading by remember { mutableStateOf(false) }
-    var downloadProgress by remember { mutableIntStateOf(0) }
-    var downloadStatus by remember { mutableStateOf("") }
+
     
     val context = LocalContext.current
     
@@ -94,7 +93,7 @@ fun SettingsScreen(
                     SettingsToggleItem(
                         title = "Offline Mode",
                         subtitle = if (isOfflineMode) {
-                            if (isModelAvailable) "Using local model" else "Model download required"
+                            if (isModelAvailable) "Using local model" else "Model will download automatically when network is available"
                         } else {
                             "Using server inference"
                         },
@@ -102,135 +101,41 @@ fun SettingsScreen(
                         onToggle = { enabled ->
                             isOfflineMode = enabled
                             analyzer.setOfflineMode(enabled)
-                            
-                            if (enabled && !isModelAvailable) {
-                                downloadStatus = "Offline mode enabled. Download model to use."
-                            }
                         },
                         icon = if (isOfflineMode) Icons.Default.Phone else Icons.Default.Email
                     )
                     
-                    // Model Download Section
-                    if (isOfflineMode) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        ModelDownloadCard(
-                            isModelAvailable = isModelAvailable,
-                            isDownloading = isDownloading,
-                            downloadProgress = downloadProgress,
-                            downloadStatus = downloadStatus,
-                            onDownload = {
-                                if (!isDownloading) {
-                                    isDownloading = true
-                                    downloadStatus = "Starting download..."
-                                    downloadProgress = 0
-                                    
-                                    (context as ComponentActivity).lifecycleScope.launch {
-                                        analyzer.downloadModelForOfflineUse(
-                                            onProgress = { progress ->
-                                                downloadProgress = progress
-                                                downloadStatus = "Downloading model... $progress%"
-                                            },
-                                            onComplete = { success ->
-                                                isDownloading = false
-                                                if (success) {
-                                                    isModelAvailable = true
-                                                    downloadStatus = "✅ Model downloaded successfully"
-                                                    Toast.makeText(context, "Offline model ready!", Toast.LENGTH_SHORT).show()
-                                                } else {
-                                                    downloadStatus = "❌ Download failed. Check network connection."
-                                                    Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
-                                                }
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        )
-                    }
+
+                }
+            }
+            
+            item {
+                SettingsSection(title = "Model Management") {
+                    var isAutoUpdateEnabled by remember { mutableStateOf(analyzer.isAutoUpdateEnabled()) }
+                    var updateInfo by remember { mutableStateOf(analyzer.getModelUpdateInfo()) }
+                    var isCheckingUpdates by remember { mutableStateOf(false) }
                     
-                    // Auto-update settings
-                    if (isOfflineMode) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        var isAutoUpdateEnabled by remember { mutableStateOf(analyzer.isAutoUpdateEnabled()) }
-                        var updateInfo by remember { mutableStateOf(analyzer.getModelUpdateInfo()) }
-                        var isCheckingUpdates by remember { mutableStateOf(false) }
-                        
-                        SettingsToggleItem(
-                            title = "Automatic Updates",
-                            subtitle = if (isAutoUpdateEnabled) "Model will update automatically when network is available" 
-                                      else "Manual model updates only",
-                            isChecked = isAutoUpdateEnabled,
-                            onToggle = { enabled: Boolean ->
-                                isAutoUpdateEnabled = enabled
-                                analyzer.setAutoUpdateEnabled(enabled)
-                            },
-                            icon = Icons.Default.Refresh
-                        )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = Color(0xFFF8F9FA)
-                            )
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(12.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            "Update Status",
-                                            fontWeight = FontWeight.Medium,
-                                            fontSize = 14.sp
-                                        )
-                                        Text(
-                                            updateInfo,
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF6B7280)
-                                        )
-                                    }
-                                    
-                                    Button(
-                                        onClick = {
-                                            if (!isCheckingUpdates) {
-                                                isCheckingUpdates = true
-                                                (context as ComponentActivity).lifecycleScope.launch {
-                                                    analyzer.checkForModelUpdates()
-                                                    updateInfo = analyzer.getModelUpdateInfo()
-                                                    isCheckingUpdates = false
-                                                }
-                                            }
-                                        },
-                                        enabled = !isCheckingUpdates,
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = com.example.modicanalyzer.ui.theme.ModicareAccent
-                                        ),
-                                        shape = RoundedCornerShape(6.dp),
-                                        modifier = Modifier.height(32.dp)
-                                    ) {
-                                        if (isCheckingUpdates) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(16.dp),
-                                                color = Color.White,
-                                                strokeWidth = 2.dp
-                                            )
-                                        } else {
-                                            Text("Check", fontSize = 12.sp)
-                                        }
-                                    }
+                    ModelStatusCard(
+                        isModelAvailable = isModelAvailable,
+                        modelInfo = if (isModelAvailable) "24.93MB TensorFlow Lite model ready for offline use" 
+                                   else "Model will download automatically when connected to internet",
+                        lastUpdateCheck = updateInfo,
+                        autoUpdateEnabled = isAutoUpdateEnabled,
+                        onToggleAutoUpdate = { enabled ->
+                            isAutoUpdateEnabled = enabled
+                            analyzer.setAutoUpdateEnabled(enabled)
+                        },
+                        onCheckForUpdate = {
+                            if (!isCheckingUpdates) {
+                                isCheckingUpdates = true
+                                (context as ComponentActivity).lifecycleScope.launch {
+                                    analyzer.checkForModelUpdates()
+                                    updateInfo = analyzer.getModelUpdateInfo()
+                                    isCheckingUpdates = false
                                 }
                             }
                         }
-                    }
+                    )
                 }
             }
             
@@ -468,12 +373,13 @@ fun SettingsInfoItem(
 }
 
 @Composable
-fun ModelDownloadCard(
+fun ModelStatusCard(
     isModelAvailable: Boolean,
-    isDownloading: Boolean,
-    downloadProgress: Int,
-    downloadStatus: String,
-    onDownload: () -> Unit
+    modelInfo: String,
+    lastUpdateCheck: String,
+    autoUpdateEnabled: Boolean,
+    onToggleAutoUpdate: (Boolean) -> Unit,
+    onCheckForUpdate: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -489,7 +395,7 @@ fun ModelDownloadCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    if (isModelAvailable) Icons.Default.CheckCircle else Icons.Default.Add,
+                    if (isModelAvailable) Icons.Default.CheckCircle else Icons.Default.Warning,
                     contentDescription = null,
                     tint = if (isModelAvailable) Color(0xFF10B981) else Color(0xFFF59E0B),
                     modifier = Modifier.size(20.dp)
@@ -499,41 +405,65 @@ fun ModelDownloadCard(
                 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        if (isModelAvailable) "Model Ready" else "Download Required",
+                        if (isModelAvailable) "Model Available" else "Model Not Available",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp,
                         color = if (isModelAvailable) Color(0xFF065F46) else Color(0xFF92400E)
                     )
                     
-                    if (downloadStatus.isNotEmpty()) {
+                    Text(
+                        modelInfo,
+                        fontSize = 12.sp,
+                        color = if (isModelAvailable) Color(0xFF10B981) else Color(0xFFF59E0B)
+                    )
+                    
+                    if (lastUpdateCheck.isNotEmpty()) {
                         Text(
-                            downloadStatus,
-                            fontSize = 12.sp,
-                            color = if (isModelAvailable) Color(0xFF10B981) else Color(0xFFF59E0B)
+                            "Last checked: $lastUpdateCheck",
+                            fontSize = 11.sp,
+                            color = Color.Gray
                         )
-                    }
-                }
-                
-                if (!isModelAvailable && !isDownloading) {
-                    Button(
-                        onClick = onDownload,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = com.example.modicanalyzer.ui.theme.ModicareAccent
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("Download", fontSize = 12.sp)
                     }
                 }
             }
             
-            if (isDownloading) {
-                Spacer(modifier = Modifier.height(12.dp))
-                LinearProgressIndicator(
-                    progress = downloadProgress / 100f,
-                    modifier = Modifier.fillMaxWidth(),
-                    color = com.example.modicanalyzer.ui.theme.ModicarePrimary
-                )
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(
+                        checked = autoUpdateEnabled,
+                        onCheckedChange = onToggleAutoUpdate,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = com.example.modicanalyzer.ui.theme.ModicarePrimary,
+                            checkedTrackColor = com.example.modicanalyzer.ui.theme.ModicarePrimary.copy(alpha = 0.3f)
+                        )
+                    )
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    Text(
+                        "Auto-update",
+                        fontSize = 12.sp,
+                        color = Color(0xFF374151)
+                    )
+                }
+                
+                OutlinedButton(
+                    onClick = onCheckForUpdate,
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, com.example.modicanalyzer.ui.theme.ModicarePrimary)
+                ) {
+                    Text(
+                        "Check Now", 
+                        fontSize = 12.sp,
+                        color = com.example.modicanalyzer.ui.theme.ModicarePrimary
+                    )
+                }
             }
         }
     }
