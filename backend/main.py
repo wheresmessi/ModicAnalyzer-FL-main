@@ -1,15 +1,13 @@
 from pathlib import Path
 import time
-import uuid
-import shutil
+import hashlib
 import os
-from typing import List
 import logging
 import io
 import numpy as np
 from PIL import Image
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -29,12 +27,6 @@ except ImportError:
     logger.warning("⚠️ TensorFlow not available - prediction endpoint will be disabled")
 
 ROOT = Path(__file__).parent
-UPLOADS = ROOT / "storage" / "uploads"
-GLOBAL = ROOT / "storage" / "global"
-ARCHIVE = ROOT / "storage" / "archive"
-
-for d in (UPLOADS, GLOBAL, ARCHIVE):
-    d.mkdir(parents=True, exist_ok=True)
 
 # Ensure required model exists
 TFLITE_MODEL = ROOT / "modic_model.tflite"
@@ -92,37 +84,11 @@ app.add_middleware(
 
 # Statistics tracking
 stats = {
-    "total_uploads": 0,
-    "total_aggregations": 0,
-    "unique_clients": set(),
-    "last_aggregation": None,
-    "server_start_time": time.time(),
-    "successful_aggregations": 0,
-    "failed_aggregations": 0
+    "total_clients": 0,
+    "server_start_time": time.time()
 }
 
-# Production configuration
-MAX_CLIENTS_PER_ROUND = int(os.getenv("MAX_CLIENTS_PER_ROUND", "10"))
-MIN_CLIENTS_FOR_AGGREGATION = int(os.getenv("MIN_CLIENTS_FOR_AGGREGATION", "2"))
-AUTO_AGGREGATION_ENABLED = os.getenv("AUTO_AGGREGATION", "false").lower() == "true"
-
-
-def aggregate():
-    """Simple aggregation placeholder - currently no-op since using static TFLite model"""
-    logger.info("📊 Aggregation called - using static TFLite model")
-    stats["total_aggregations"] += 1
-    return {"status": "completed", "model": "static_tflite"}
-
-async def trigger_auto_aggregation():
-    """Background task to trigger automatic aggregation"""
-    try:
-        logger.info("🤖 Auto-aggregation triggered")
-        # Call the aggregation function
-        result = aggregate()
-        logger.info(f"✅ Auto-aggregation completed: {result}")
-    except Exception as e:
-        logger.error(f"❌ Auto-aggregation failed: {e}")
-        stats["failed_aggregations"] += 1
+# TFLite-only server - no federated learning
 
 
 @app.post("/predict")
@@ -246,79 +212,6 @@ async def predict(
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
 
-@app.post("/upload_weights")
-async def upload_weights(
-    background_tasks: BackgroundTasks,
-    client_id: str = Form(...), 
-    file: UploadFile = File(...)
-):
-    """Accept a client-uploaded .npz file containing model weights.
-
-    Expects a multipart form with `client_id` and a file field (binary .npz).
-    Saves the file into `backend/storage/uploads/` for later aggregation.
-    """
-    # Validate input
-    if not client_id or len(client_id) > 64:
-        raise HTTPException(status_code=400, detail="Invalid client_id")
-    
-    if not file.filename or not file.filename.endswith(('.npz', '.npy')):
-        raise HTTPException(status_code=400, detail="File must be .npz or .npy format")
-    
-    # Check if we have too many pending uploads
-    pending_uploads = len(list(UPLOADS.glob("*.npz")))
-    if pending_uploads >= MAX_CLIENTS_PER_ROUND:
-        raise HTTPException(
-            status_code=429, 
-            detail=f"Too many pending uploads. Max: {MAX_CLIENTS_PER_ROUND}"
-        )
-    
-    # Track statistics
-    stats["total_uploads"] += 1
-    stats["unique_clients"].add(client_id)
-    
-    # Save file with timestamp and unique ID
-    filename = f"{client_id}_{int(time.time())}_{uuid.uuid4().hex[:8]}.npz"
-    dest = UPLOADS / filename
-    
-    try:
-        content = await file.read()
-        
-        # Basic validation - check if it's a valid .npz file
-        if len(content) < 100:  # Minimum reasonable size
-            raise HTTPException(status_code=400, detail="File too small to be valid weights")
-        
-        with open(dest, "wb") as f:
-            f.write(content)
-        
-        logger.info(f"📤 Received weights from client {client_id}: {len(content)} bytes")
-        
-        # Auto-aggregation check
-        if AUTO_AGGREGATION_ENABLED and pending_uploads + 1 >= MIN_CLIENTS_FOR_AGGREGATION:
-            background_tasks.add_task(trigger_auto_aggregation)
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to save upload from {client_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to save upload: {e}")
-
-    return {
-        "status": "received", 
-        "filename": dest.name,
-        "total_clients": len(stats["unique_clients"]),
-        "total_uploads": stats["total_uploads"],
-        "pending_uploads": pending_uploads + 1,
-        "auto_aggregation": AUTO_AGGREGATION_ENABLED
-    }
-
-
-@app.get("/latest_weights")
-def latest_weights():
-    """Download the latest aggregated weights (.npz) - Legacy endpoint."""
-    path = GLOBAL / "latest_weights.npz"
-    if path.exists():
-        return FileResponse(str(path), media_type="application/octet-stream", filename="latest_weights.npz")
-    raise HTTPException(status_code=404, detail="No global model available yet")
-
-
 @app.get("/model_info")
 def get_model_info():
     """Get model metadata for client-side update checking."""
@@ -381,35 +274,24 @@ def status():
     return {
         # Basic status
         "status": "operational",
-        "architecture": "full_tflite",
-        "version": "2.2",
+        "architecture": "tflite_only",
+        "version": "2.3",
         "uptime_hours": uptime_hours,
         
-        # File status
-        "uploads": len(list(UPLOADS.glob("*.npz"))),
-        "global_exists": (GLOBAL / "latest_weights.npz").exists(),
+        # Model status
         "tflite_model_exists": TFLITE_MODEL.exists(),
-        "archived_files": len(list(ARCHIVE.glob("*.npz"))),
         
         # Statistics
-        "total_uploads": stats["total_uploads"],
-        "total_aggregations": stats["total_aggregations"],
-        "successful_aggregations": stats["successful_aggregations"],
-        "failed_aggregations": stats["failed_aggregations"],
-        "unique_clients": len(stats["unique_clients"]),
-        "last_aggregation": stats["last_aggregation"],
+        "total_clients": stats["total_clients"],
         
         # Model info
         "tflite_model_size_mb": round(TFLITE_MODEL.stat().st_size / (1024*1024), 2) if TFLITE_MODEL.exists() else 0,
         
-        # Configuration
-        "max_clients_per_round": MAX_CLIENTS_PER_ROUND,
-        "min_clients_for_aggregation": MIN_CLIENTS_FOR_AGGREGATION,
-        "auto_aggregation_enabled": AUTO_AGGREGATION_ENABLED,
+
         
         # Health indicators
         "health": {
-            "can_aggregate": len(list(UPLOADS.glob("*.npz"))) >= MIN_CLIENTS_FOR_AGGREGATION,
+
             "models_ready": TFLITE_MODEL.exists(),
             "error_rate": round(stats["failed_aggregations"] / max(stats["total_aggregations"], 1) * 100, 2)
         }
@@ -420,39 +302,34 @@ def status():
 def root():
     """Production API information"""
     return {
-        "message": "ModicAnalyzer Federated Learning Server - Production Ready (TFLite-optimized)",
-        "version": "2.2",
-        "architecture": "full_tflite",
+        "message": "ModicAnalyzer TFLite Model Server - Production Ready",
+        "version": "2.3",
+        "architecture": "tflite_only",
         "status": "operational",
         "endpoints": {
             "predict": "POST /predict",
-            "upload": "POST /upload_weights",
-            "aggregate": "POST /aggregate", 
             "model_info": "GET /model_info",
-            "download_tflite": "GET /get_global_model",
-            "download_legacy": "GET /latest_weights",
+            "download_model": "GET /get_global_model",
             "status": "GET /status",
             "health": "GET /health"
         },
         "workflow": {
             "1": "Clients send T1/T2 images via /predict for server-side inference",
-            "2": "Clients send weight updates (.npz) via /upload_weights",
-            "3": "Server aggregates using .tflite model via /aggregate",
-            "4": "Server serves updated .tflite model via /get_global_model",
-            "5": "Clients download and update local .tflite models for offline use"
+            "2": "Clients check for model updates via /model_info",
+            "3": "Server serves current .tflite model via /get_global_model",
+            "4": "Clients auto-download updated models when available",
+            "5": "Clients use local .tflite models for offline inference"
         },
         "features": {
             "online_inference": tf_available and prediction_interpreter is not None,
-            "federated_learning": True,
+            "automatic_model_updates": True,
             "offline_model_distribution": True
         },
         "production_features": {
-            "auto_aggregation": AUTO_AGGREGATION_ENABLED,
-            "max_clients_per_round": MAX_CLIENTS_PER_ROUND,
-            "min_clients_for_aggregation": MIN_CLIENTS_FOR_AGGREGATION,
             "comprehensive_logging": True,
             "error_tracking": True,
-            "model_validation": True
+            "model_validation": True,
+            "hash_verification": True
         }
     }
 
@@ -463,7 +340,7 @@ def health_check():
     try:
         # Check critical components
         tflite_ok = TFLITE_MODEL.exists()
-        storage_ok = all(d.exists() for d in [UPLOADS, GLOBAL, ARCHIVE])
+        storage_ok = True  # No storage directories needed for TFLite-only mode
         model_loaded = prediction_interpreter is not None
         
         status_info = {

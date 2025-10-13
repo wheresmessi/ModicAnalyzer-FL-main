@@ -36,24 +36,22 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.example.modicanalyzer.fl.FederatedLearningManager
+
 
 class SimpleMainActivity : ComponentActivity() {
     private lateinit var modicAnalyzer: ModicAnalyzer
-    private lateinit var flManager: FederatedLearningManager
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
         modicAnalyzer = ModicAnalyzer(this)
-        flManager = FederatedLearningManager(this)
         
         // Initialize automatic model updates
         modicAnalyzer.initializeAutoUpdates()
         
         setContent {
             com.example.modicanalyzer.ui.theme.ModicAnalyzerTheme(darkTheme = false, dynamicColor = false) {
-                MainScreen(analyzer = modicAnalyzer, flManager = flManager)
+                MainScreen(analyzer = modicAnalyzer)
             }
         }
     }
@@ -61,13 +59,12 @@ class SimpleMainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         modicAnalyzer.cleanup()
-        flManager.cleanup()
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(analyzer: ModicAnalyzer, flManager: FederatedLearningManager) {
+fun MainScreen(analyzer: ModicAnalyzer) {
     var selectedScreen by remember { mutableStateOf(0) }
     
     Scaffold(
@@ -144,7 +141,7 @@ fun MainScreen(analyzer: ModicAnalyzer, flManager: FederatedLearningManager) {
         }
     ) { paddingValues ->
         when (selectedScreen) {
-            0 -> AnalyzeScreen(analyzer, flManager, paddingValues)
+            0 -> AnalyzeScreen(analyzer, paddingValues)
             1 -> Box(modifier = Modifier.padding(paddingValues)) { ModicGuideScreen() }
             2 -> Box(modifier = Modifier.padding(paddingValues)) { ProfileScreen() }
         }
@@ -184,7 +181,7 @@ fun StatusIndicator() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AnalyzeScreen(analyzer: ModicAnalyzer, flManager: FederatedLearningManager, paddingValues: PaddingValues) {
+fun AnalyzeScreen(analyzer: ModicAnalyzer, paddingValues: PaddingValues) {
     var t1Image by remember { mutableStateOf<Bitmap?>(null) }
     var t2Image by remember { mutableStateOf<Bitmap?>(null) }
     var analysisResult by remember { mutableStateOf<String?>(null) }
