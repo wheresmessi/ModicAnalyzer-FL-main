@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
  */
 class ModelUpdateManager(
     private val context: Context,
-    private val serverUrl: String = "http://10.0.2.2:8000"
+    private val serverUrl: String = "https://modic.onrender.com"
 ) {
     private val prefs: SharedPreferences by lazy {
         context.getSharedPreferences("model_update_prefs", Context.MODE_PRIVATE)

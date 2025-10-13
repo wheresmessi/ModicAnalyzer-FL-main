@@ -21,7 +21,7 @@ import java.util.zip.ZipOutputStream
  */
 class FederatedLearningClient(
     private val context: Context,
-    private val serverUrl: String = "http://10.0.2.2:8000", // Local development server
+    private val serverUrl: String = "https://modic.onrender.com", // Render deployment server
     private val clientId: String = android.provider.Settings.Secure.getString(
         context.contentResolver,
         android.provider.Settings.Secure.ANDROID_ID

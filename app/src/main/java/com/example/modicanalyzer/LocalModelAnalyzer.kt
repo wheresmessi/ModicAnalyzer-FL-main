@@ -31,7 +31,7 @@ class LocalModelAnalyzer(private val context: Context) {
     companion object {
         private const val TAG = "LocalAnalyzer"
         private const val MODEL_FILENAME = "modic_model_offline.tflite"
-        private const val DOWNLOAD_URL = "http://10.0.2.2:8000/get_global_model"
+        private const val DOWNLOAD_URL = "https://modic.onrender.com/get_global_model"
         
         private const val FLOAT_TYPE_SIZE = 4
         private const val PIXEL_SIZE = 3 // RGB

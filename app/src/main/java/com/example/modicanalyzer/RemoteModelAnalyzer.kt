@@ -27,7 +27,7 @@ class RemoteModelAnalyzer(private val context: Context) {
     
     companion object {
         private const val TAG = "RemoteAnalyzer"
-        private const val DEFAULT_SERVER_URL = "http://10.0.2.2:8000"
+        private const val DEFAULT_SERVER_URL = "https://modic.onrender.com"
         private const val PREDICT_ENDPOINT = "/predict"
         private const val IMAGE_COMPRESSION_QUALITY = 85 // JPEG quality for faster upload
     }
