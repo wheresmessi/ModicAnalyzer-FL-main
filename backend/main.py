@@ -256,7 +256,7 @@ def get_global_model():
         media_type="application/octet-stream", 
         filename="modic_model.tflite",
         headers={
-            "Model-Version": str(stats["total_aggregations"]),
+            "Model-Version": "0",
             "Model-Hash": file_hash,
             "Model-Size": str(TFLITE_MODEL.stat().st_size)
         }
@@ -291,9 +291,8 @@ def status():
         
         # Health indicators
         "health": {
-
             "models_ready": TFLITE_MODEL.exists(),
-            "error_rate": round(stats["failed_aggregations"] / max(stats["total_aggregations"], 1) * 100, 2)
+            "error_rate": 0.0
         }
     }
 
