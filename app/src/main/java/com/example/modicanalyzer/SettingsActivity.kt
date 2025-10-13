@@ -33,7 +33,7 @@ class SettingsActivity : ComponentActivity() {
         modicAnalyzer = ModicAnalyzer(this)
         
         setContent {
-            com.example.modicanalyzer.ui.theme.ModicAnalyzerTheme(dynamicColor = false) {
+            com.example.modicanalyzer.ui.theme.ModicAnalyzerTheme(darkTheme = false, dynamicColor = false) {
                 SettingsScreen(analyzer = modicAnalyzer) {
                     finish() // Close settings when done
                 }
@@ -148,6 +148,89 @@ fun SettingsScreen(
                             }
                         )
                     }
+                    
+                    // Auto-update settings
+                    if (isOfflineMode) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        var isAutoUpdateEnabled by remember { mutableStateOf(analyzer.isAutoUpdateEnabled()) }
+                        var updateInfo by remember { mutableStateOf(analyzer.getModelUpdateInfo()) }
+                        var isCheckingUpdates by remember { mutableStateOf(false) }
+                        
+                        SettingsToggleItem(
+                            title = "Automatic Updates",
+                            subtitle = if (isAutoUpdateEnabled) "Model will update automatically when network is available" 
+                                      else "Manual model updates only",
+                            isChecked = isAutoUpdateEnabled,
+                            onToggle = { enabled: Boolean ->
+                                isAutoUpdateEnabled = enabled
+                                analyzer.setAutoUpdateEnabled(enabled)
+                            },
+                            icon = Icons.Default.Refresh
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFFF8F9FA)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Update Status",
+                                            fontWeight = FontWeight.Medium,
+                                            fontSize = 14.sp
+                                        )
+                                        Text(
+                                            updateInfo,
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF6B7280)
+                                        )
+                                    }
+                                    
+                                    Button(
+                                        onClick = {
+                                            if (!isCheckingUpdates) {
+                                                isCheckingUpdates = true
+                                                (context as ComponentActivity).lifecycleScope.launch {
+                                                    analyzer.checkForModelUpdates()
+                                                    updateInfo = analyzer.getModelUpdateInfo()
+                                                    isCheckingUpdates = false
+                                                }
+                                            }
+                                        },
+                                        enabled = !isCheckingUpdates,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = com.example.modicanalyzer.ui.theme.ModicareAccent
+                                        ),
+                                        shape = RoundedCornerShape(6.dp),
+                                        modifier = Modifier.height(32.dp)
+                                    ) {
+                                        if (isCheckingUpdates) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(16.dp),
+                                                color = Color.White,
+                                                strokeWidth = 2.dp
+                                            )
+                                        } else {
+                                            Text("Check", fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             
@@ -166,6 +249,82 @@ fun SettingsScreen(
                         subtitle = "Images analyzed locally. No data sent to server. Model may be older.",
                         icon = Icons.Default.Phone
                     )
+                }
+            }
+            
+            item {
+                SettingsSection(title = "Account") {
+                    val context = LocalContext.current
+                    val authManager = AuthManager(context)
+                    
+                    // User Info
+                    val userInfo = if (authManager.isLoggedIn()) {
+                        "Logged in as: ${authManager.getUserName() ?: "User"} (${authManager.getUserRole() ?: "Patient"})"
+                    } else {
+                        "Demo User"
+                    }
+                    
+                    SettingsInfoItem(
+                        title = "User Profile",
+                        subtitle = userInfo,
+                        icon = Icons.Default.Person
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Logout Button
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFFFEBEE)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.ExitToApp,
+                                contentDescription = "Logout",
+                                tint = Color(0xFFD32F2F),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            
+                            Spacer(modifier = Modifier.width(16.dp))
+                            
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Sign Out",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 16.sp,
+                                    color = Color(0xFFD32F2F)
+                                )
+                                Text(
+                                    "Return to login screen",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF757575)
+                                )
+                            }
+                            
+                            IconButton(
+                                onClick = {
+                                    authManager.logout()
+                                    val intent = android.content.Intent(context, LoginActivity::class.java)
+                                    intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    context.startActivity(intent)
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.ExitToApp,
+                                    contentDescription = "Sign Out",
+                                    tint = Color(0xFFD32F2F)
+                                )
+                            }
+                        }
+                    }
                 }
             }
             

@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.example.modicanalyzer.model.ModelUpdateManager
 
 /**
  * Unified analyzer that switches between online (remote) and offline (local) inference
@@ -19,11 +20,55 @@ class ModicAnalyzer(private val context: Context) {
     
     private val remoteAnalyzer by lazy { RemoteModelAnalyzer(context) }
     private var localAnalyzer: LocalModelAnalyzer? = null
+    private val modelUpdateManager by lazy { ModelUpdateManager(context) }
     
     companion object {
         private const val TAG = "ModicAnalyzer"
         private const val PREF_OFFLINE_MODE = "offline_mode_enabled"
         private const val PREF_MODEL_DOWNLOADED = "local_model_downloaded"
+    }
+    
+    /**
+     * Initialize automatic model updates when network is available
+     */
+    fun initializeAutoUpdates() {
+        modelUpdateManager.startPeriodicUpdateCheck()
+        Log.d(TAG, "Automatic model updates initialized")
+    }
+    
+    /**
+     * Set model update listener
+     */
+    fun setModelUpdateListener(listener: ModelUpdateManager.ModelUpdateListener?) {
+        modelUpdateManager.setUpdateListener(listener)
+    }
+    
+    /**
+     * Enable/disable automatic model updates
+     */
+    fun setAutoUpdateEnabled(enabled: Boolean) {
+        modelUpdateManager.setAutoUpdateEnabled(enabled)
+    }
+    
+    /**
+     * Check if auto-update is enabled
+     */
+    fun isAutoUpdateEnabled(): Boolean {
+        return modelUpdateManager.isAutoUpdateEnabled()
+    }
+    
+    /**
+     * Manually check for model updates
+     */
+    suspend fun checkForModelUpdates(): Boolean {
+        return modelUpdateManager.checkForUpdates()
+    }
+    
+    /**
+     * Get model update info
+     */
+    fun getModelUpdateInfo(): String {
+        return modelUpdateManager.getLastUpdateInfo()
     }
     
     /**
@@ -134,5 +179,6 @@ class ModicAnalyzer(private val context: Context) {
     fun cleanup() {
         localAnalyzer?.cleanup()
         remoteAnalyzer.cleanup()
+        modelUpdateManager.cleanup()
     }
 }

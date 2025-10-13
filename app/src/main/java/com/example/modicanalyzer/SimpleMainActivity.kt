@@ -48,8 +48,11 @@ class SimpleMainActivity : ComponentActivity() {
         modicAnalyzer = ModicAnalyzer(this)
         flManager = FederatedLearningManager(this)
         
+        // Initialize automatic model updates
+        modicAnalyzer.initializeAutoUpdates()
+        
         setContent {
-            com.example.modicanalyzer.ui.theme.ModicAnalyzerTheme(dynamicColor = false) {
+            com.example.modicanalyzer.ui.theme.ModicAnalyzerTheme(darkTheme = false, dynamicColor = false) {
                 MainScreen(analyzer = modicAnalyzer, flManager = flManager)
             }
         }
@@ -72,12 +75,24 @@ fun MainScreen(analyzer: ModicAnalyzer, flManager: FederatedLearningManager) {
             // Simple clean top bar without blur
             TopAppBar(
                 title = {
-                    Text(
-                        text = "SpinoCare",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val authManager = AuthManager(context)
+                    
+                    Column {
+                        Text(
+                            text = "SpinoCare",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        if (authManager.isLoggedIn()) {
+                            Text(
+                                text = "Welcome, ${authManager.getUserName() ?: "User"}",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = com.example.modicanalyzer.ui.theme.ModicarePrimary
