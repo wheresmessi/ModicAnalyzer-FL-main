@@ -154,6 +154,10 @@ fun MainScreen(analyzer: ModicAnalyzer) {
                         val intent = android.content.Intent(context, PrivacyPolicyActivity::class.java)
                         context.startActivity(intent)
                     },
+                    onModelSettingsClick = {
+                        val intent = android.content.Intent(context, ModelSettingsActivity::class.java)
+                        context.startActivity(intent)
+                    },
                     onSignOutClick = {
                         val authManager = AuthManager(context)
                         authManager.logout()

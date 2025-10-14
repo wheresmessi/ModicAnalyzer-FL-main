@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 fun ProfileScreen(
     onHelpSupportClick: () -> Unit = {},
     onPrivacyPolicyClick: () -> Unit = {},
+    onModelSettingsClick: () -> Unit = {},
     onSignOutClick: () -> Unit = {},
     onNavigateBack: () -> Unit = {}
 ) {
@@ -165,6 +166,7 @@ fun ProfileScreen(
                     when (option.title) {
                         "Help & Support" -> onHelpSupportClick()
                         "Privacy Policy" -> onPrivacyPolicyClick()
+                        "Model Settings" -> onModelSettingsClick()
                         "Sign Out" -> onSignOutClick()
                     }
                 }
@@ -286,6 +288,12 @@ fun getProfileOptions() = listOf(
         "Review our terms and privacy policy",
         Icons.Default.Lock,
         Color(0xFF64748B)
+    ),
+    ProfileOption(
+        "Model Settings",
+        "Manage AI model and analysis settings",
+        Icons.Default.Storage,
+        Color(0xFF8B5CF6)
     ),
     ProfileOption(
         "Sign Out",

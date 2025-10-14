@@ -76,6 +76,13 @@
             android:label="Privacy Policy"
             android:theme="@style/Theme.SpinoCare" />
             
+        <!-- Model Settings Activity -->
+        <activity
+            android:name=".ModelSettingsActivity"
+            android:exported="false"
+            android:label="Model Settings"
+            android:theme="@style/Theme.SpinoCare" />
+            
     </application>
 
 </manifest>
