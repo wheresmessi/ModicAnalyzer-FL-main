@@ -21,7 +21,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     onHelpSupportClick: () -> Unit = {},
@@ -37,33 +36,20 @@ fun ProfileScreen(
     val userRole = authManager.getUserRole() ?: "Patient"
     val userEmail = authManager.getUserEmail() ?: "No email available"
     
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Profile") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            com.example.modicanalyzer.ui.theme.ModicareBackground,
-                            Color.White
-                        )
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        com.example.modicanalyzer.ui.theme.ModicareBackground,
+                        Color.White
                     )
                 )
-                .padding(paddingValues)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+            )
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         item {
             // Profile Header: avatar on left, details fill right
             Card(
@@ -183,7 +169,6 @@ fun ProfileScreen(
                     }
                 }
             )
-        }
         }
     }
 }
