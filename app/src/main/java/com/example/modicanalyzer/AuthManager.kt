@@ -69,9 +69,18 @@ class AuthManager(private val context: Context) {
         return firebaseUser != null || prefs.getBoolean(KEY_IS_LOGGED_IN, false)
     }
 
-    fun getUserEmail(): String? = try { firebaseAuth?.currentUser?.email } catch (e: Exception) { null }
+    fun getUserEmail(): String? = try { 
+        firebaseAuth?.currentUser?.email ?: prefs.getString(KEY_USER_EMAIL, null)
+    } catch (e: Exception) { 
+        prefs.getString(KEY_USER_EMAIL, null)
+    }
 
-    fun getUserName(): String? = prefs.getString(KEY_USER_NAME, null)
+    fun getUserName(): String? = try {
+        // Try Firebase displayName first, fallback to SharedPreferences
+        firebaseAuth?.currentUser?.displayName ?: prefs.getString(KEY_USER_NAME, null)
+    } catch (e: Exception) {
+        prefs.getString(KEY_USER_NAME, null)
+    }
 
     fun getUserRole(): String? = prefs.getString(KEY_USER_ROLE, null)
 
@@ -125,6 +134,15 @@ class AuthManager(private val context: Context) {
         name = "Demo User",
         role = "Patient"
     )
+    
+    /**
+     * Check if the user is authenticated with Firebase (real account) vs local demo
+     */
+    fun isFirebaseAuthenticated(): Boolean = try {
+        firebaseAuth?.currentUser != null
+    } catch (e: Exception) {
+        false
+    }
 
     data class UserInfo(
         val email: String,

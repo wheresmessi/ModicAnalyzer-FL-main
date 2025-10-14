@@ -455,7 +455,7 @@ fun StatusCard(analyzer: ModicAnalyzer) {
             
             Button(
                 onClick = {
-                    val intent = android.content.Intent(context, SettingsActivity::class.java)
+                    val intent = android.content.Intent(context, ProfileActivity::class.java)
                     context.startActivity(intent)
                 },
                 colors = ButtonDefaults.buttonColors(
@@ -465,7 +465,7 @@ fun StatusCard(analyzer: ModicAnalyzer) {
                 shape = RoundedCornerShape(12.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                Text("Settings", fontSize = 12.sp)
+                Text("Profile", fontSize = 12.sp)
             }
         }
     }

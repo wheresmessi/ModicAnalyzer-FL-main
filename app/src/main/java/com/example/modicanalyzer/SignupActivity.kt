@@ -5,6 +5,8 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -80,6 +83,25 @@ fun SignupScreen(
         ) {
             Spacer(modifier = Modifier.height(32.dp))
             
+            // Logo Section
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .background(
+                        color = Color.White,
+                        shape = RoundedCornerShape(40.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                    contentDescription = "SpinoCare Logo",
+                    modifier = Modifier.size(60.dp)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
             // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -103,7 +125,7 @@ fun SignupScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
-                        text = "Join the ModicAnalyzer community",
+                        text = "Join the SpinoCare community",
                         fontSize = 16.sp,
                         color = Color.Gray,
                         textAlign = TextAlign.Center,
@@ -121,7 +143,8 @@ fun SignupScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp)

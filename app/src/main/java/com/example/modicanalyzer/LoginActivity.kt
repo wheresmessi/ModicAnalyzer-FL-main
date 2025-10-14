@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -80,31 +81,27 @@ fun LoginScreen(
             verticalArrangement = Arrangement.Center
         ) {
             // Logo/Header Section
-            Card(
-                modifier = Modifier.size(120.dp),
-                shape = RoundedCornerShape(60.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = com.example.modicanalyzer.ui.theme.ModicarePrimary.copy(alpha = 0.1f)
-                )
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .background(
+                        color = Color.White,
+                        shape = RoundedCornerShape(60.dp)
+                    ),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Star,
-                        contentDescription = "ModicAnalyzer Logo",
-                        modifier = Modifier.size(60.dp),
-                        tint = com.example.modicanalyzer.ui.theme.ModicarePrimary
-                    )
-                }
+                Image(
+                    painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                    contentDescription = "SpinoCare Logo",
+                    modifier = Modifier.size(80.dp)
+                )
             }
             
             Spacer(modifier = Modifier.height(32.dp))
             
             // Title
             Text(
-                text = "Welcome to ModicAnalyzer",
+                text = "Welcome to SpinoCare",
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 color = com.example.modicanalyzer.ui.theme.ModicarePrimary,
@@ -112,7 +109,7 @@ fun LoginScreen(
             )
             
             Text(
-                text = "Advanced Medical Image Analysis",
+                text = "Advanced Spinal Health Analysis",
                 fontSize = 16.sp,
                 color = Color.Gray,
                 textAlign = TextAlign.Center,
@@ -123,7 +120,8 @@ fun LoginScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp)
@@ -196,14 +194,26 @@ fun LoginScreen(
                                 authManager.signInWithFirebase(email, password,
                                     onSuccess = { user ->
                                         // Persist a minimal profile locally (displayName may be null)
-                                        val displayName = user.displayName ?: "User Name"
+                                        val displayName = user.displayName ?: run {
+                                            // Extract name from email if displayName is null
+                                            val emailPart = (user.email ?: email).substringBefore("@")
+                                            emailPart.split(".").joinToString(" ") { 
+                                                it.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase() else char.toString() }
+                                            }
+                                        }
                                         authManager.saveUserProfileIfNeeded(user.email ?: email, displayName, "Patient")
                                         Toast.makeText(context, "Login successful! Welcome ${displayName}", Toast.LENGTH_SHORT).show()
                                         onLoginSuccess()
                                     },
                                     onFailure = { ex ->
                                         // If Firebase not available or sign-in failed, fallback to local demo login
-                                        authManager.localLogin(email, "User Name", "Patient")
+                                        val displayName = run {
+                                            val emailPart = email.substringBefore("@")
+                                            emailPart.split(".").joinToString(" ") { 
+                                                it.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase() else char.toString() }
+                                            }
+                                        }
+                                        authManager.localLogin(email, displayName, "Patient")
                                         Toast.makeText(context, "Proceeding in demo mode (offline).", Toast.LENGTH_SHORT).show()
                                         onLoginSuccess()
                                     }

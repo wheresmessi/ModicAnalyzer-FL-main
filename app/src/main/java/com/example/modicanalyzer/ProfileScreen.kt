@@ -15,27 +15,55 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen() {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        com.example.modicanalyzer.ui.theme.ModicareBackground,
-                        Color.White
+fun ProfileScreen(
+    onHelpSupportClick: () -> Unit = {},
+    onPrivacyPolicyClick: () -> Unit = {},
+    onSignOutClick: () -> Unit = {},
+    onNavigateBack: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val authManager = AuthManager(context)
+    
+    // Get user information from AuthManager
+    val userName = authManager.getUserName() ?: "Guest User"
+    val userRole = authManager.getUserRole() ?: "Patient"
+    val userEmail = authManager.getUserEmail() ?: "No email available"
+    
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Profile") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            com.example.modicanalyzer.ui.theme.ModicareBackground,
+                            Color.White
+                        )
                     )
                 )
-            )
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+                .padding(paddingValues)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
         item {
             // Profile Header: avatar on left, details fill right
             Card(
@@ -78,7 +106,7 @@ fun ProfileScreen() {
                     // Right: name and details, take remaining space
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "Dr. John Doe",
+                            userName,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = com.example.modicanalyzer.ui.theme.ModicarePrimaryVariant
@@ -87,60 +115,50 @@ fun ProfileScreen() {
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
-                            "Radiologist",
+                            userRole,
                             fontSize = 16.sp,
                             color = com.example.modicanalyzer.ui.theme.ModicareAccent
                         )
 
                         Text(
-                            "City General Hospital",
+                            userEmail,
                             fontSize = 14.sp,
                             color = com.example.modicanalyzer.ui.theme.TextSecondary
                         )
+                        
+                        Spacer(modifier = Modifier.height(4.dp))
+                        
+                        // Account Status
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (authManager.isFirebaseAuthenticated()) Icons.Default.CheckCircle 
+                                else if (authManager.isLoggedIn()) Icons.Default.AccountBox
+                                else Icons.Default.AccountCircle,
+                                contentDescription = null,
+                                tint = if (authManager.isFirebaseAuthenticated()) Color(0xFF4CAF50) 
+                                       else if (authManager.isLoggedIn()) Color(0xFF2196F3)
+                                       else com.example.modicanalyzer.ui.theme.ModicareAccent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                if (authManager.isFirebaseAuthenticated()) "Firebase Account" 
+                                else if (authManager.isLoggedIn()) "Local Account" 
+                                else "Demo Account",
+                                fontSize = 12.sp,
+                                color = if (authManager.isFirebaseAuthenticated()) Color(0xFF4CAF50) 
+                                       else if (authManager.isLoggedIn()) Color(0xFF2196F3)
+                                       else com.example.modicanalyzer.ui.theme.ModicareAccent
+                            )
+                        }
                     }
                 }
             }
         }
         
-        item {
-            // Statistics Card replaced with a Box + pale background + border to avoid elevation halo
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            color = com.example.modicanalyzer.ui.theme.ModicareSecondary.copy(alpha = 0.18f),
-                            shape = RoundedCornerShape(16.dp)
-                        )
-                        .border(
-                            width = 1.dp,
-                            color = com.example.modicanalyzer.ui.theme.ModicareAccent.copy(alpha = 0.3f),
-                            shape = RoundedCornerShape(16.dp)
-                        )
-                        .clip(RoundedCornerShape(16.dp))
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp)
-                    ) {
-                        Text(
-                            "Usage Statistics",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = com.example.modicanalyzer.ui.theme.ModicarePrimaryVariant
-                        )
-                    
-                        Spacer(modifier = Modifier.height(16.dp))
-                    
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            StatisticItem("42", "Analyses", Icons.Default.Check)
-                            StatisticItem("18", "This Month", Icons.Default.DateRange)
-                            StatisticItem("94%", "Accuracy", Icons.Default.CheckCircle)
-                        }
-                    }
-                }
-        }
+        // Usage statistics removed
         
         item {
             // Profile Options
@@ -153,9 +171,19 @@ fun ProfileScreen() {
             )
         }
         
-        items(profileOptions.size) { index ->
-            val option = profileOptions[index]
-            ProfileOptionCard(option = option)
+        items(getProfileOptions().size) { index ->
+            val option = getProfileOptions()[index]
+            ProfileOptionCard(
+                option = option,
+                onClick = {
+                    when (option.title) {
+                        "Help & Support" -> onHelpSupportClick()
+                        "Privacy Policy" -> onPrivacyPolicyClick()
+                        "Sign Out" -> onSignOutClick()
+                    }
+                }
+            )
+        }
         }
     }
 }
@@ -191,12 +219,17 @@ fun StatisticItem(
     }
 }
 
+// StatisticItem function kept but not used (usage statistics removed)
+
 @Composable
-fun ProfileOptionCard(option: ProfileOption) {
+fun ProfileOptionCard(
+    option: ProfileOption,
+    onClick: () -> Unit = {}
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { /* Handle click */ },
+            .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(12.dp)
@@ -255,41 +288,24 @@ data class ProfileOption(
     val color: Color
 )
 
-val profileOptions = listOf(
-    ProfileOption(
-        "Personal Information",
-        "Update your profile details",
-        Icons.Default.Edit,
-        com.example.modicanalyzer.ui.theme.ModicarePrimary
-    ),
-    ProfileOption(
-        "Notification Settings",
-        "Manage your notifications",
-        Icons.Default.Notifications,
-        Color(0xFF059669)
-    ),
-    ProfileOption(
-        "Analysis History",
-        "View past analyses and reports",
-        Icons.Default.List,
-        Color(0xFF7C3AED)
-    ),
+// Updated to only include essential options
+fun getProfileOptions() = listOf(
     ProfileOption(
         "Help & Support",
-        "Get help and contact support",
-        Icons.Default.Info,
+        "Get help and frequently asked questions",
+        Icons.Filled.Help,
         Color(0xFFF59E0B)
     ),
     ProfileOption(
         "Privacy Policy",
-        "Review our privacy policy",
+        "Review our terms and privacy policy",
         Icons.Default.Lock,
         Color(0xFF64748B)
     ),
     ProfileOption(
         "Sign Out",
         "Sign out of your account",
-        Icons.Default.ExitToApp,
+        Icons.Filled.Logout,
         Color(0xFFDC2626)
     )
 )
