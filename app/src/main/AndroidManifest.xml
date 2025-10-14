@@ -19,7 +19,8 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
-    android:theme="@style/Theme.SpinoCare">
+        android:theme="@style/Theme.SpinoCare"
+        tools:replace="android:theme">
         
         <!-- Login Activity (Launcher) -->
         <activity
@@ -52,6 +53,34 @@
             android:name=".SettingsActivity"
             android:exported="false"
             android:label="Settings"
+            android:theme="@style/Theme.SpinoCare" />
+            
+        <!-- Profile Activity -->
+        <activity
+            android:name=".ProfileActivity"
+            android:exported="false"
+            android:label="Profile"
+            android:theme="@style/Theme.SpinoCare" />
+            
+        <!-- Help & Support Activity -->
+        <activity
+            android:name=".HelpSupportActivity"
+            android:exported="false"
+            android:label="Help &amp; Support"
+            android:theme="@style/Theme.SpinoCare" />
+            
+        <!-- Privacy Policy Activity -->
+        <activity
+            android:name=".PrivacyPolicyActivity"
+            android:exported="false"
+            android:label="Privacy Policy"
+            android:theme="@style/Theme.SpinoCare" />
+            
+        <!-- Model Settings Activity -->
+        <activity
+            android:name=".ModelSettingsActivity"
+            android:exported="false"
+            android:label="Model Settings"
             android:theme="@style/Theme.SpinoCare" />
             
     </application>

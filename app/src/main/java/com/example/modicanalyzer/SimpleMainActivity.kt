@@ -66,6 +66,7 @@ class SimpleMainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(analyzer: ModicAnalyzer) {
     var selectedScreen by remember { mutableStateOf(0) }
+    val context = androidx.compose.ui.platform.LocalContext.current
     
     Scaffold(
         topBar = {
@@ -143,7 +144,31 @@ fun MainScreen(analyzer: ModicAnalyzer) {
         when (selectedScreen) {
             0 -> AnalyzeScreen(analyzer, paddingValues)
             1 -> Box(modifier = Modifier.padding(paddingValues)) { ModicGuideScreen() }
-            2 -> Box(modifier = Modifier.padding(paddingValues)) { ProfileScreen() }
+            2 -> Box(modifier = Modifier.padding(paddingValues)) { 
+                ProfileScreen(
+                    onHelpSupportClick = {
+                        val intent = android.content.Intent(context, HelpSupportActivity::class.java)
+                        context.startActivity(intent)
+                    },
+                    onPrivacyPolicyClick = {
+                        val intent = android.content.Intent(context, PrivacyPolicyActivity::class.java)
+                        context.startActivity(intent)
+                    },
+                    onModelSettingsClick = {
+                        val intent = android.content.Intent(context, ModelSettingsActivity::class.java)
+                        context.startActivity(intent)
+                    },
+                    onSignOutClick = {
+                        val authManager = AuthManager(context)
+                        authManager.logout()
+                        android.widget.Toast.makeText(context, "Signed out successfully", android.widget.Toast.LENGTH_SHORT).show()
+                        
+                        val intent = android.content.Intent(context, LoginActivity::class.java)
+                        intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        context.startActivity(intent)
+                    }
+                )
+            }
         }
     }
 }
@@ -252,10 +277,6 @@ fun AnalyzeScreen(analyzer: ModicAnalyzer, paddingValues: PaddingValues) {
     ) {
         item {
             HeaderCard()
-        }
-        
-        item {
-            StatusCard(analyzer)
         }
         
         item {
@@ -389,84 +410,6 @@ fun HeaderCard() {
                 color = Color(0xFF6B7280),
                 textAlign = TextAlign.Center
             )
-        }
-    }
-}
-
-@Composable 
-fun StatusCard(analyzer: ModicAnalyzer) {
-    val context = LocalContext.current
-    val sharedPrefs = context.getSharedPreferences("modic_settings", android.content.Context.MODE_PRIVATE)
-    val isOfflineMode = sharedPrefs.getBoolean("offline_mode", false)
-    
-    val isModelAvailable = remember {
-        val modelFile = java.io.File(context.filesDir, "modic_model.tflite")
-        modelFile.exists()
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (isOfflineMode && isModelAvailable) Color(0xFF10B981).copy(alpha = 0.1f)
-                        else if (isOfflineMode) Color(0xFFF59E0B).copy(alpha = 0.1f)
-                        else Color(0xFF3B82F6).copy(alpha = 0.1f)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    if (isOfflineMode) Icons.Default.Phone else Icons.Default.Email,
-                    contentDescription = null,
-                    tint = com.example.modicanalyzer.ui.theme.ModicarePrimary,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (isOfflineMode) {
-                        if (isModelAvailable) "Offline Mode (Ready)" else "Offline Mode (Download Model)"
-                    } else "Online Mode (Server Analysis)",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF1F2937)
-                )
-                Text(
-                    text = if (isOfflineMode) {
-                        if (isModelAvailable) "Using local TensorFlow Lite model" else "Model download required"
-                    } else "Using latest cloud-based AI model",
-                    fontSize = 12.sp,
-                    color = Color(0xFF6B7280)
-                )
-            }
-            
-            Button(
-                onClick = {
-                    val intent = android.content.Intent(context, SettingsActivity::class.java)
-                    context.startActivity(intent)
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = com.example.modicanalyzer.ui.theme.ModicarePrimary.copy(alpha = 0.1f),
-                    contentColor = com.example.modicanalyzer.ui.theme.ModicarePrimary
-                ),
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Text("Settings", fontSize = 12.sp)
-            }
         }
     }
 }

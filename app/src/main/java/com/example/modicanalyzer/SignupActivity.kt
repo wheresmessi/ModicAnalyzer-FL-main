@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -80,7 +81,7 @@ fun SignupScreen(
         ) {
             Spacer(modifier = Modifier.height(32.dp))
             
-            // Header
+            // Header with App Name
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -95,7 +96,7 @@ fun SignupScreen(
                 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Create Account",
+                        text = "SpinoCare",
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
                         color = com.example.modicanalyzer.ui.theme.ModicarePrimary,
@@ -103,7 +104,7 @@ fun SignupScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
-                        text = "Join the ModicAnalyzer community",
+                        text = "Join the SpinoCare community",
                         fontSize = 16.sp,
                         color = Color.Gray,
                         textAlign = TextAlign.Center,
@@ -121,7 +122,8 @@ fun SignupScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp)
