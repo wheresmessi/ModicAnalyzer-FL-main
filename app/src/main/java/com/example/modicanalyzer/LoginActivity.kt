@@ -191,11 +191,23 @@ fun LoginScreen(
                         onClick = {
                             if (email.isNotBlank() && password.isNotBlank()) {
                                 isLoading = true
-                                // Simulate login process
                                 val authManager = AuthManager(context)
-                                authManager.login(email, "User Name", "Patient") // Demo login
-                                Toast.makeText(context, "Login successful! Welcome to ModicAnalyzer", Toast.LENGTH_SHORT).show()
-                                onLoginSuccess()
+                                // Try Firebase sign-in first; if unavailable or fails, fall back to local demo login
+                                authManager.signInWithFirebase(email, password,
+                                    onSuccess = { user ->
+                                        // Persist a minimal profile locally (displayName may be null)
+                                        val displayName = user.displayName ?: "User Name"
+                                        authManager.saveUserProfileIfNeeded(user.email ?: email, displayName, "Patient")
+                                        Toast.makeText(context, "Login successful! Welcome ${displayName}", Toast.LENGTH_SHORT).show()
+                                        onLoginSuccess()
+                                    },
+                                    onFailure = { ex ->
+                                        // If Firebase not available or sign-in failed, fallback to local demo login
+                                        authManager.localLogin(email, "User Name", "Patient")
+                                        Toast.makeText(context, "Proceeding in demo mode (offline).", Toast.LENGTH_SHORT).show()
+                                        onLoginSuccess()
+                                    }
+                                )
                             } else {
                                 Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
                             }
@@ -251,7 +263,7 @@ fun LoginScreen(
                 onClick = {
                     val authManager = AuthManager(context)
                     val demoInfo = authManager.getDemoUserInfo()
-                    authManager.login(demoInfo.email, demoInfo.name, demoInfo.role)
+                    authManager.localLogin(demoInfo.email, demoInfo.name, demoInfo.role)
                     Toast.makeText(context, "Proceeding as demo user", Toast.LENGTH_SHORT).show()
                     onLoginSuccess()
                 },

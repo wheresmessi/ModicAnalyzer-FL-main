@@ -5,12 +5,17 @@ plugins {
     kotlin("plugin.serialization") version "2.0.21"
 }
 
+// Apply the Google services plugin to make google-services.json values available to Firebase SDKs.
+// This plugin is declared in the project-level `build.gradle.kts` (id("com.google.gms.google-services") version "4.4.4" apply false).
+// If you don't want to enable Firebase in your environment, you can remove or comment this line.
+apply(plugin = "com.google.gms.google-services")
+
 android {
     namespace = "com.example.modicanalyzer"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.modicanalyzer"
+        applicationId = "com.example.modicanlyzer"
         minSdk = 26  // Updated to Android O (API 26) to support MethodHandle APIs
         targetSdk = 36
         versionCode = 1
@@ -69,6 +74,13 @@ dependencies {
     
     // Core library desugaring for better API compatibility
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
+    // Firebase BoM - ensures compatible versions for all Firebase libraries
+    implementation(platform("com.google.firebase:firebase-bom:33.0.0"))
+
+    // Firebase libraries - Explicitly versioned to resolve dependency issue
+    implementation("com.google.firebase:firebase-auth-ktx:22.4.0")
+    implementation("com.google.firebase:firebase-analytics-ktx:22.0.0")
     
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

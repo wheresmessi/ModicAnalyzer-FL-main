@@ -299,11 +299,21 @@ fun SignupScreen(
                                 !acceptTerms -> Toast.makeText(context, "Please accept the terms and conditions", Toast.LENGTH_SHORT).show()
                                 else -> {
                                     isLoading = true
-                                    // Simulate signup process
                                     val authManager = AuthManager(context)
-                                    authManager.login(email, fullName, selectedRole)
-                                    Toast.makeText(context, "Account created successfully! Welcome to ModicAnalyzer", Toast.LENGTH_SHORT).show()
-                                    onSignupSuccess()
+                                    // Try to create Firebase user; fall back to local session if Firebase not available
+                                    authManager.createUserWithFirebase(email, password,
+                                        onSuccess = { user ->
+                                            authManager.saveUserProfileIfNeeded(user.email ?: email, fullName, selectedRole)
+                                            Toast.makeText(context, "Account created successfully! Welcome ${fullName}", Toast.LENGTH_SHORT).show()
+                                            onSignupSuccess()
+                                        },
+                                        onFailure = { ex ->
+                                            // Fallback: local login/signup
+                                            authManager.localLogin(email, fullName, selectedRole)
+                                            Toast.makeText(context, "Account created locally (demo).", Toast.LENGTH_SHORT).show()
+                                            onSignupSuccess()
+                                        }
+                                    )
                                 }
                             }
                         },

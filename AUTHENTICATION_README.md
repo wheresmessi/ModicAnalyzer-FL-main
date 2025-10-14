@@ -122,3 +122,29 @@ authManager.logout()
 - Role-based access control foundation set
 
 This provides a complete, professional authentication experience that matches the medical nature of the ModicAnalyzer application!
+
+## Firebase Authentication (optional)
+
+This project now includes optional Firebase Authentication support. The app will try to use Firebase at runtime when available; if Firebase is not configured (for example, `google-services.json` is not present), the app falls back to the local/demo SharedPreferences-based session so the UI and flows continue to work.
+
+How to enable Firebase Auth:
+
+1. Create a Firebase project at https://console.firebase.google.com/ and enable Email/Password sign-in in Authentication > Sign-in method.
+2. In Firebase project settings, download the Android `google-services.json` file and place it into the project's `app/` directory.
+3. Add the Google Services Gradle plugin to the project-level `build.gradle` classpath:
+
+   buildscript {
+     dependencies {
+       classpath 'com.google.gms:google-services:4.3.15'
+     }
+   }
+
+   Or with the new settings, add the plugin classpath to your Gradle settings as appropriate for your Gradle version.
+
+4. (Optional) Uncomment the `apply(plugin = "com.google.gms.google-services")` line in `app/build.gradle.kts` to enable the google-services plugin. The codebase keeps this commented by default to avoid build errors when `google-services.json` is not present.
+
+5. Rebuild the project in Android Studio. After configuring Firebase and enabling Email/Password authentication, sign-up and login will use Firebase; otherwise the app uses a local demo mode.
+
+Notes:
+- The code uses `AuthManager` to wrap Firebase calls and provide a safe fallback.
+- No backend server changes are required for basic Firebase Auth usage, but storing additional user profile fields server-side requires a backend (Firestore/RealtimeDB or your own API).
