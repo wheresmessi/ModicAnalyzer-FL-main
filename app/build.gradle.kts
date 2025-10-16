@@ -3,6 +3,8 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     kotlin("plugin.serialization") version "2.0.21"
+    kotlin("kapt")
+    id("com.google.dagger.hilt.android")
 }
 
 // Apply the Google services plugin to make google-services.json values available to Firebase SDKs.
@@ -60,6 +62,32 @@ configurations.all {
 }
 
 dependencies {
+    // Room Database - Local offline caching
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
+    
+    // WorkManager - Background sync jobs
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    
+    // Hilt - Dependency Injection
+    implementation("com.google.dagger:hilt-android:2.50")
+    kapt("com.google.dagger:hilt-android-compiler:2.50")
+    implementation("androidx.hilt:hilt-work:1.1.0")
+    kapt("androidx.hilt:hilt-compiler:1.1.0")
+    
+    // Firestore - Cloud database
+    implementation("com.google.firebase:firebase-firestore-ktx:24.10.3")
+    
+    // Coroutines - Async operations
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+    
+    // Lifecycle components - ViewModel & LiveData
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    
     // LiteRT 2025 - Google's future-proof solution (eliminates conflicts)
     implementation("com.google.ai.edge.litert:litert:1.0.1")
     

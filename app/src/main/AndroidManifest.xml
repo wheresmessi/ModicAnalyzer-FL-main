@@ -11,6 +11,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
+        android:name=".ModicareApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -22,11 +23,23 @@
         android:theme="@style/Theme.SpinoCare"
         tools:replace="android:theme">
         
+        <!-- Disable default WorkManager initialization since we provide custom configuration -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+        
         <!-- Login Activity (Launcher) -->
         <activity
             android:name=".LoginActivity"
             android:exported="true"
-            android:label="Login"
+            android:label="SpinoCare"
             android:theme="@style/Theme.SpinoCare">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
