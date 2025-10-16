@@ -28,8 +28,14 @@ import javax.inject.Inject
 class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val networkObserver: NetworkConnectivityObserver,
-    private val workManager: WorkManager
+    private val workManager: WorkManager,
+    private val application: android.app.Application
 ) : ViewModel() {
+    
+    companion object {
+        private const val PREFS_NAME = "auth_prefs"
+        private const val KEY_LAST_USER_ID = "last_user_id"
+    }
     
     /**
      * Current authentication state.
@@ -50,6 +56,8 @@ class AuthViewModel @Inject constructor(
         )
     
     init {
+        android.util.Log.d("AuthViewModel", "Initializing AuthViewModel")
+        
         // Monitor network changes and trigger sync when coming online
         observeNetworkChanges()
         
@@ -71,6 +79,8 @@ class AuthViewModel @Inject constructor(
         confirmPassword: String,
         displayName: String? = null
     ) {
+        android.util.Log.d("AuthViewModel", "signUp called: email=$email, isOnline=${isOnline.value}")
+        
         viewModelScope.launch {
             // Validate all input fields
             val validationResults = ValidationUtil.validateSignupForm(
@@ -80,6 +90,8 @@ class AuthViewModel @Inject constructor(
                 displayName = displayName?.trim()
             )
             
+            android.util.Log.d("AuthViewModel", "Validation results: ${validationResults.values.map { "${it.field}=${it.isValid}" }}")
+            
             // Check if any validation failed
             val firstError = validationResults.values.firstOrNull { !it.isValid }
             if (firstError != null) {
@@ -88,17 +100,27 @@ class AuthViewModel @Inject constructor(
             }
             
             // All validations passed, proceed with signup
+            android.util.Log.d("AuthViewModel", "Validation passed, calling authRepository.signUp()")
+            
             authRepository.signUp(
                 email = email.trim(),
                 password = password,
                 displayName = displayName?.trim(),
                 isOnline = isOnline.value
             ).collect { state ->
+                android.util.Log.d("AuthViewModel", "signUp state received: $state")
                 _authState.value = state
                 
-                // If signup successful and online, trigger immediate sync
-                if (state is AuthState.Success && isOnline.value) {
-                    triggerSync(state.userId)
+                // If signup successful, save user session and trigger sync if online
+                if (state is AuthState.Success) {
+                    android.util.Log.d("AuthViewModel", "Signup successful! userId=${state.userId}, isFirebaseAuth=${state.isFirebaseAuth}")
+                    saveLastLoggedInUserId(state.userId)
+                    if (isOnline.value) {
+                        android.util.Log.d("AuthViewModel", "Device is online, triggering sync")
+                        triggerSync(state.userId)
+                    } else {
+                        android.util.Log.d("AuthViewModel", "Device is offline, sync will happen when connected")
+                    }
                 }
             }
         }
@@ -111,12 +133,16 @@ class AuthViewModel @Inject constructor(
      * @param password User's password
      */
     fun login(email: String, password: String) {
+        android.util.Log.d("AuthViewModel", "login called: email=$email, isOnline=${isOnline.value}")
+        
         viewModelScope.launch {
             // Validate input fields
             val validationResults = ValidationUtil.validateLoginForm(
                 email = email.trim(),
                 password = password
             )
+            
+            android.util.Log.d("AuthViewModel", "Login validation results: ${validationResults.values.map { "${it.field}=${it.isValid}" }}")
             
             // Check if any validation failed
             val firstError = validationResults.values.firstOrNull { !it.isValid }
@@ -126,16 +152,26 @@ class AuthViewModel @Inject constructor(
             }
             
             // Validation passed, proceed with login
+            android.util.Log.d("AuthViewModel", "Login validation passed, calling authRepository.login()")
+            
             authRepository.login(
                 email = email.trim(),
                 password = password,
                 isOnline = isOnline.value
             ).collect { state ->
+                android.util.Log.d("AuthViewModel", "login state received: $state")
                 _authState.value = state
                 
-                // If login successful and online, trigger sync
-                if (state is AuthState.Success && isOnline.value) {
-                    triggerSync(state.userId)
+                // If login successful, save user session and trigger sync if online
+                if (state is AuthState.Success) {
+                    android.util.Log.d("AuthViewModel", "Login successful! userId=${state.userId}, isFirebaseAuth=${state.isFirebaseAuth}")
+                    saveLastLoggedInUserId(state.userId)
+                    if (isOnline.value) {
+                        android.util.Log.d("AuthViewModel", "Device is online, triggering sync")
+                        triggerSync(state.userId)
+                    } else {
+                        android.util.Log.d("AuthViewModel", "Device is offline, no sync needed")
+                    }
                 }
             }
         }
@@ -146,6 +182,7 @@ class AuthViewModel @Inject constructor(
      */
     fun signOut() {
         authRepository.signOut()
+        clearLastLoggedInUserId()
         _authState.value = AuthState.Unauthenticated
         
         // Cancel any ongoing sync work
@@ -153,18 +190,84 @@ class AuthViewModel @Inject constructor(
     }
     
     /**
+     * Save the last logged in user ID for session persistence.
+     */
+    private fun saveLastLoggedInUserId(userId: String) {
+        android.util.Log.d("AuthViewModel", "saveLastLoggedInUserId: Saving userId=$userId to SharedPreferences")
+        val prefs = application.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_LAST_USER_ID, userId).apply()
+    }
+    
+    /**
+     * Get the last logged in user ID.
+     */
+    private fun getLastLoggedInUserId(): String? {
+        val prefs = application.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        return prefs.getString(KEY_LAST_USER_ID, null)
+    }
+    
+    /**
+     * Clear the last logged in user ID.
+     */
+    private fun clearLastLoggedInUserId() {
+        val prefs = application.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        prefs.edit().remove(KEY_LAST_USER_ID).apply()
+    }
+    
+    /**
+     * Force sync now (manual trigger for testing/debugging).
+     */
+    fun forceSyncNow() {
+        val currentState = _authState.value
+        if (currentState is AuthState.Success) {
+            triggerSync(currentState.userId)
+        }
+    }
+    
+    /**
      * Check if a user is currently authenticated.
+     * FIXED: Now checks BOTH Firebase AND Room database for offline users
      */
     private fun checkCurrentUser() {
-        val currentUser = authRepository.getCurrentFirebaseUser()
-        if (currentUser != null) {
-            _authState.value = AuthState.Success(
-                userId = currentUser.uid,
-                email = currentUser.email ?: "",
-                isFirebaseAuth = true
-            )
-        } else {
-            _authState.value = AuthState.Unauthenticated
+        viewModelScope.launch {
+            android.util.Log.d("AuthViewModel", "checkCurrentUser: Checking authentication status...")
+            
+            // First check Firebase
+            val firebaseUser = authRepository.getCurrentFirebaseUser()
+            android.util.Log.d("AuthViewModel", "checkCurrentUser: Firebase user = ${firebaseUser?.email ?: "null"}")
+            
+            if (firebaseUser != null) {
+                android.util.Log.d("AuthViewModel", "checkCurrentUser: Firebase user found, logging in with UID=${firebaseUser.uid}")
+                _authState.value = AuthState.Success(
+                    userId = firebaseUser.uid,
+                    email = firebaseUser.email ?: "",
+                    isFirebaseAuth = true
+                )
+            } else {
+                // No Firebase user, check Room database for offline users
+                val lastLoggedInUserId = getLastLoggedInUserId()
+                android.util.Log.d("AuthViewModel", "checkCurrentUser: Last logged in userId from SharedPrefs = $lastLoggedInUserId")
+                
+                if (lastLoggedInUserId != null) {
+                    val localUser = authRepository.getUserById(lastLoggedInUserId)
+                    android.util.Log.d("AuthViewModel", "checkCurrentUser: Local user from Room = ${localUser?.email ?: "null"}")
+                    
+                    if (localUser != null) {
+                        android.util.Log.d("AuthViewModel", "checkCurrentUser: Local user found, logging in as ${localUser.email}")
+                        _authState.value = AuthState.Success(
+                            userId = localUser.userId,
+                            email = localUser.email,
+                            isFirebaseAuth = localUser.isFirebaseAuth
+                        )
+                    } else {
+                        android.util.Log.d("AuthViewModel", "checkCurrentUser: No local user found, setting Unauthenticated")
+                        _authState.value = AuthState.Unauthenticated
+                    }
+                } else {
+                    android.util.Log.d("AuthViewModel", "checkCurrentUser: No saved userId, setting Unauthenticated")
+                    _authState.value = AuthState.Unauthenticated
+                }
+            }
         }
     }
     

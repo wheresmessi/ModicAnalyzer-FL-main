@@ -136,6 +136,8 @@ class AuthRepository @Inject constructor(
                 
                 userDao.insertUser(userEntity)
                 
+                android.util.Log.d("AuthRepository", "Offline signup successful: userId=$userId, email=$email, syncStatus=PENDING")
+                
                 emit(AuthState.Success(
                     userId = userId,
                     email = email,
@@ -283,10 +285,15 @@ class AuthRepository @Inject constructor(
      */
     suspend fun syncOfflineUsers(): List<String> {
         val unsyncedUsers = userDao.getUnsyncedUsers()
+        
+        android.util.Log.d("AuthRepository", "Starting sync for ${unsyncedUsers.size} unsynced users")
+        
         val syncedUserIds = mutableListOf<String>()
         
         unsyncedUsers.forEach { user ->
             try {
+                android.util.Log.d("AuthRepository", "Syncing user: ${user.email}, isFirebaseAuth=${user.isFirebaseAuth}, hasEncryptedPassword=${user.encryptedPassword != null}")
+                
                 // Update sync status to SYNCING
                 userDao.updateSyncStatus(user.userId, SyncStatus.SYNCING, null)
                 
@@ -304,6 +311,8 @@ class AuthRepository @Inject constructor(
                         
                         val firebaseUser = authResult.user
                         if (firebaseUser != null) {
+                            android.util.Log.d("AuthRepository", "Firebase account created successfully: ${firebaseUser.uid}")
+                            
                             // Update display name in Firebase
                             if (user.displayName != null) {
                                 val profileUpdates = UserProfileChangeRequest.Builder()
@@ -375,6 +384,19 @@ class AuthRepository @Inject constructor(
      * Get current authenticated user from Firebase.
      */
     fun getCurrentFirebaseUser() = firebaseAuth.currentUser
+    
+    /**
+     * Check if there are any pending users waiting to be synced.
+     * Useful for debugging and testing.
+     */
+    suspend fun hasPendingUsers(): Boolean {
+        val pendingUsers = userDao.getUnsyncedUsers()
+        android.util.Log.d("AuthRepository", "Pending users count: ${pendingUsers.size}")
+        pendingUsers.forEach { user ->
+            android.util.Log.d("AuthRepository", "  - ${user.email} (userId=${user.userId}, syncStatus=${user.syncStatus})")
+        }
+        return pendingUsers.isNotEmpty()
+    }
     
     /**
      * Sign out the current user.
