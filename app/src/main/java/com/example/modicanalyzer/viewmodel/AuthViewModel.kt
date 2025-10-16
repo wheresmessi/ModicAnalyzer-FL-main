@@ -6,6 +6,7 @@ import androidx.work.*
 import com.example.modicanalyzer.data.model.AuthState
 import com.example.modicanalyzer.data.repository.AuthRepository
 import com.example.modicanalyzer.util.NetworkConnectivityObserver
+import com.example.modicanalyzer.util.ValidationUtil
 import com.example.modicanalyzer.worker.SyncWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -16,17 +17,12 @@ import javax.inject.Inject
  * ViewModel for Authentication operations.
  * 
  * Manages:
- * - User signup (online/offline)
- * - User login (online/offline)
+ * - User signup (online/offline) with validation
+ * - User login (online/offline) with validation
  * - Authentication state
  * - Network connectivity status
  * - Automatic sync trigger on network availability
- * 
- * Features:
- * - Offline-first authentication
- * - Reactive state management with StateFlow
- * - Automatic background sync when online
- * - Network status monitoring
+ * - Input validation and error handling
  */
 @HiltViewModel
 class AuthViewModel @Inject constructor(
@@ -62,18 +58,40 @@ class AuthViewModel @Inject constructor(
     }
     
     /**
-     * Sign up a new user.
+     * Sign up a new user with validation.
      * 
      * @param email User's email
      * @param password User's password
+     * @param confirmPassword Password confirmation
      * @param displayName User's display name (optional)
      */
-    fun signUp(email: String, password: String, displayName: String? = null) {
+    fun signUp(
+        email: String, 
+        password: String, 
+        confirmPassword: String,
+        displayName: String? = null
+    ) {
         viewModelScope.launch {
-            authRepository.signUp(
-                email = email,
+            // Validate all input fields
+            val validationResults = ValidationUtil.validateSignupForm(
+                email = email.trim(),
                 password = password,
-                displayName = displayName,
+                confirmPassword = confirmPassword,
+                displayName = displayName?.trim()
+            )
+            
+            // Check if any validation failed
+            val firstError = validationResults.values.firstOrNull { !it.isValid }
+            if (firstError != null) {
+                _authState.value = AuthState.Error(firstError.errorMessage ?: "Invalid input")
+                return@launch
+            }
+            
+            // All validations passed, proceed with signup
+            authRepository.signUp(
+                email = email.trim(),
+                password = password,
+                displayName = displayName?.trim(),
                 isOnline = isOnline.value
             ).collect { state ->
                 _authState.value = state
@@ -87,15 +105,29 @@ class AuthViewModel @Inject constructor(
     }
     
     /**
-     * Log in an existing user.
+     * Log in an existing user with validation.
      * 
      * @param email User's email
      * @param password User's password
      */
     fun login(email: String, password: String) {
         viewModelScope.launch {
+            // Validate input fields
+            val validationResults = ValidationUtil.validateLoginForm(
+                email = email.trim(),
+                password = password
+            )
+            
+            // Check if any validation failed
+            val firstError = validationResults.values.firstOrNull { !it.isValid }
+            if (firstError != null) {
+                _authState.value = AuthState.Error(firstError.errorMessage ?: "Invalid input")
+                return@launch
+            }
+            
+            // Validation passed, proceed with login
             authRepository.login(
-                email = email,
+                email = email.trim(),
                 password = password,
                 isOnline = isOnline.value
             ).collect { state ->

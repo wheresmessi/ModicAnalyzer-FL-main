@@ -14,6 +14,7 @@ import com.example.modicanalyzer.data.model.SyncStatus
  * @property userId Unique identifier (Firebase UID when synced, local UUID when offline)
  * @property email User's email address
  * @property passwordHash Hashed password for offline authentication
+ * @property encryptedPassword Encrypted password for offline users (needed for Firebase sync, deleted after sync)
  * @property displayName User's display name (optional)
  * @property isFirebaseAuth True if this user is authenticated via Firebase
  * @property syncStatus Current synchronization status with Firebase
@@ -26,6 +27,7 @@ data class UserEntity(
     val userId: String,
     val email: String,
     val passwordHash: String,
+    val encryptedPassword: String? = null, // Only for offline users, deleted after sync
     val displayName: String? = null,
     val isFirebaseAuth: Boolean = false,
     val syncStatus: SyncStatus = SyncStatus.PENDING,

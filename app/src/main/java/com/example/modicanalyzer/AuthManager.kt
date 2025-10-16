@@ -6,9 +6,18 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 
 /**
- * AuthManager handles authentication state for the app. It uses FirebaseAuth when available
- * and falls back to a local SharedPreferences-based session for demo/offline usage.
+ * AuthManager - DEPRECATED
+ * 
+ * This class is kept for backward compatibility only.
+ * New code should use AuthRepository with Hilt dependency injection.
+ * 
+ * SECURITY NOTE: Demo mode and localLogin() have been removed.
+ * All authentication now goes through Firebase Auth or Room database.
  */
+@Deprecated(
+    message = "Use AuthRepository with Hilt dependency injection instead",
+    replaceWith = ReplaceWith("AuthRepository", "com.example.modicanalyzer.data.repository.AuthRepository")
+)
 class AuthManager(private val context: Context) {
     companion object {
         private const val PREF_NAME = "modic_auth"
@@ -20,8 +29,6 @@ class AuthManager(private val context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
 
-    // FirebaseAuth instance (lazy). If Firebase is not configured or google-services.json is missing,
-    // calls to FirebaseAuth will safely fail and fallback will be used.
     private val firebaseAuth: FirebaseAuth? by lazy {
         try {
             FirebaseAuth.getInstance()
@@ -31,20 +38,19 @@ class AuthManager(private val context: Context) {
     }
 
     /**
-     * Perform a demo/local login (keeps existing behavior) — used as a fallback or for the demo user.
+     * DEPRECATED - No longer supports demo mode.
+     * Use AuthRepository.login() instead.
      */
+    @Deprecated("Use AuthRepository.login() instead")
     fun localLogin(email: String, name: String, role: String) {
-        prefs.edit().apply {
-            putBoolean(KEY_IS_LOGGED_IN, true)
-            putString(KEY_USER_EMAIL, email)
-            putString(KEY_USER_NAME, name)
-            putString(KEY_USER_ROLE, role)
-            apply()
-        }
+        // REMOVED: Demo mode is no longer supported
+        throw UnsupportedOperationException(
+            "Demo mode has been removed for security. Please use proper authentication via AuthRepository."
+        )
     }
 
     /**
-     * Logout from both Firebase (if present) and local session storage.
+     * Logout from both Firebase and local session.
      */
     fun logout() {
         try {
@@ -62,34 +68,41 @@ class AuthManager(private val context: Context) {
     }
 
     /**
-     * Returns true if either Firebase has a current user or local session marks logged-in.
+     * Returns true if Firebase has a current user.
+     * Local session check removed for security.
      */
     fun isLoggedIn(): Boolean {
-        val firebaseUser: FirebaseUser? = try { firebaseAuth?.currentUser } catch (e: Exception) { null }
-        return firebaseUser != null || prefs.getBoolean(KEY_IS_LOGGED_IN, false)
+        val firebaseUser: FirebaseUser? = try { 
+            firebaseAuth?.currentUser 
+        } catch (e: Exception) { 
+            null 
+        }
+        return firebaseUser != null
     }
 
     fun getUserEmail(): String? = try { 
-        firebaseAuth?.currentUser?.email ?: prefs.getString(KEY_USER_EMAIL, null)
+        firebaseAuth?.currentUser?.email
     } catch (e: Exception) { 
-        prefs.getString(KEY_USER_EMAIL, null)
+        null
     }
 
     fun getUserName(): String? = try {
-        // Try Firebase displayName first, fallback to SharedPreferences
-        firebaseAuth?.currentUser?.displayName ?: prefs.getString(KEY_USER_NAME, null)
+        firebaseAuth?.currentUser?.displayName
     } catch (e: Exception) {
-        prefs.getString(KEY_USER_NAME, null)
+        null
     }
 
-    fun getUserRole(): String? = prefs.getString(KEY_USER_ROLE, null)
+    fun getUserRole(): String? = "Patient" // Default role
 
     /**
-     * Sign in with Firebase using email and password. On success the caller should call
-     * saveUserProfileIfNeeded to persist display name / role locally. Returns the FirebaseUser
-     * on success via the provided callbacks.
+     * Sign in with Firebase using email and password.
      */
-    fun signInWithFirebase(email: String, password: String, onSuccess: (FirebaseUser) -> Unit, onFailure: (Exception) -> Unit) {
+    fun signInWithFirebase(
+        email: String, 
+        password: String, 
+        onSuccess: (FirebaseUser) -> Unit, 
+        onFailure: (Exception) -> Unit
+    ) {
         val auth = firebaseAuth
         if (auth == null) {
             onFailure(IllegalStateException("FirebaseAuth not available"))
@@ -99,10 +112,20 @@ class AuthManager(private val context: Context) {
             .addOnSuccessListener { result ->
                 result.user?.let { onSuccess(it) } ?: onFailure(IllegalStateException("No user returned"))
             }
-            .addOnFailureListener { ex -> onFailure(ex) }
+            .addOnFailureListener { exception ->
+                onFailure(exception)
+            }
     }
 
-    fun createUserWithFirebase(email: String, password: String, onSuccess: (FirebaseUser) -> Unit, onFailure: (Exception) -> Unit) {
+    /**
+     * Create a new user with Firebase.
+     */
+    fun createUserWithFirebase(
+        email: String, 
+        password: String, 
+        onSuccess: (FirebaseUser) -> Unit, 
+        onFailure: (Exception) -> Unit
+    ) {
         val auth = firebaseAuth
         if (auth == null) {
             onFailure(IllegalStateException("FirebaseAuth not available"))
@@ -112,31 +135,38 @@ class AuthManager(private val context: Context) {
             .addOnSuccessListener { result ->
                 result.user?.let { onSuccess(it) } ?: onFailure(IllegalStateException("No user returned"))
             }
-            .addOnFailureListener { ex -> onFailure(ex) }
+            .addOnFailureListener { ex -> 
+                onFailure(ex) 
+            }
     }
 
     /**
-     * Persist basic profile information locally so UI can show name/role. This does not replace
-     * a proper backend user profile; it's a small convenience for the demo app.
+     * Save user profile to SharedPreferences (for display purposes only).
+     * Does NOT grant authentication - user must be authenticated via Firebase.
      */
-    fun saveUserProfileIfNeeded(email: String, name: String, role: String) {
-        prefs.edit().apply {
-            putBoolean(KEY_IS_LOGGED_IN, true)
-            putString(KEY_USER_EMAIL, email)
-            putString(KEY_USER_NAME, name)
-            putString(KEY_USER_ROLE, role)
-            apply()
+    fun saveUserProfileIfNeeded(email: String, displayName: String, role: String) {
+        // Only save if user is actually logged in via Firebase
+        if (firebaseAuth?.currentUser != null) {
+            prefs.edit().apply {
+                putBoolean(KEY_IS_LOGGED_IN, true)
+                putString(KEY_USER_EMAIL, email)
+                putString(KEY_USER_NAME, displayName)
+                putString(KEY_USER_ROLE, role)
+                apply()
+            }
         }
     }
 
-    fun getDemoUserInfo(): UserInfo = UserInfo(
-        email = "demo@modicanalyzer.com",
-        name = "Demo User",
-        role = "Patient"
-    )
-    
     /**
-     * Check if the user is authenticated with Firebase (real account) vs local demo
+     * DEPRECATED - Demo mode removed.
+     */
+    @Deprecated("Demo mode has been removed for security")
+    fun getDemoUserInfo(): DemoUserInfo {
+        throw UnsupportedOperationException("Demo mode has been removed for security")
+    }
+
+    /**
+     * Check if the user is authenticated with Firebase (real account).
      */
     fun isFirebaseAuthenticated(): Boolean = try {
         firebaseAuth?.currentUser != null
@@ -144,9 +174,10 @@ class AuthManager(private val context: Context) {
         false
     }
 
-    data class UserInfo(
-        val email: String,
-        val name: String,
-        val role: String
+    @Deprecated("Demo mode has been removed")
+    data class DemoUserInfo(
+        val email: String = "",
+        val name: String = "",
+        val role: String = ""
     )
 }

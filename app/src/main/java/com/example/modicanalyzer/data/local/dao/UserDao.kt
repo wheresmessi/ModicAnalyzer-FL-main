@@ -66,6 +66,13 @@ interface UserDao {
     suspend fun getUnsyncedUsers(): List<UserEntity>
     
     /**
+     * Get users by specific sync status.
+     * Useful for monitoring sync progress.
+     */
+    @Query("SELECT * FROM users WHERE syncStatus = :status")
+    suspend fun getUsersBySyncStatus(status: SyncStatus): List<UserEntity>
+    
+    /**
      * Update the sync status of a user.
      * Called after successful/failed sync attempts.
      */
@@ -77,6 +84,13 @@ interface UserDao {
      */
     @Delete
     suspend fun deleteUser(user: UserEntity)
+    
+    /**
+     * Delete a user by their userId.
+     * Useful when migrating offline users to Firebase.
+     */
+    @Query("DELETE FROM users WHERE userId = :userId")
+    suspend fun deleteUser(userId: String)
     
     /**
      * Get all users (for debugging or admin purposes).

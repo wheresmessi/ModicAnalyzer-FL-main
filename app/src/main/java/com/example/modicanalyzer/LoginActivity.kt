@@ -5,7 +5,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -24,29 +24,28 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.modicanalyzer.data.model.AuthState
+import com.example.modicanalyzer.viewmodel.AuthViewModel
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class LoginActivity : ComponentActivity() {
+    
+    private val authViewModel: AuthViewModel by viewModels()
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        // Check if user is already logged in
-        val authManager = AuthManager(this)
-        if (authManager.isLoggedIn()) {
-            startActivity(Intent(this, SimpleMainActivity::class.java))
-            finish()
-            return
-        }
         
         setContent {
             com.example.modicanalyzer.ui.theme.ModicAnalyzerTheme(darkTheme = false, dynamicColor = false) {
                 LoginScreen(
+                    viewModel = authViewModel,
                     onLoginSuccess = {
-                        // Navigate to main activity on successful login
                         startActivity(Intent(this@LoginActivity, SimpleMainActivity::class.java))
                         finish()
                     },
                     onNavigateToSignup = {
-                        // Navigate to signup activity
                         startActivity(Intent(this@LoginActivity, SignupActivity::class.java))
                     }
                 )
@@ -58,6 +57,7 @@ class LoginActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
+    viewModel: AuthViewModel,
     onLoginSuccess: () -> Unit,
     onNavigateToSignup: () -> Unit
 ) {
@@ -65,7 +65,30 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
-    var isLoading by remember { mutableStateOf(false) }
+    
+    // Collect auth state
+    val authState by viewModel.authState.collectAsStateWithLifecycle()
+    val isOnline by viewModel.isOnline.collectAsStateWithLifecycle()
+    
+    // Handle auth state changes
+    LaunchedEffect(authState) {
+        when (val state = authState) {
+            is AuthState.Success -> {
+                Toast.makeText(
+                    context,
+                    "Login successful! ${if (state.isFirebaseAuth) "Online" else "Offline"} mode",
+                    Toast.LENGTH_SHORT
+                ).show()
+                onLoginSuccess()
+            }
+            is AuthState.Error -> {
+                Toast.makeText(context, state.message, Toast.LENGTH_LONG).show()
+            }
+            else -> {}
+        }
+    }
+    
+    val isLoading = authState is AuthState.Loading
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -78,6 +101,35 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            // Connection Status Indicator
+            if (!isOnline) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = "Offline",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Offline Mode - Limited functionality",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
+            
             // App Name/Header Section
             Text(
                 text = "SpinoCare",
@@ -115,14 +167,15 @@ fun LoginScreen(
                     // Email Field
                     OutlinedTextField(
                         value = email,
-                        onValueChange = { email = it },
+                        onValueChange = { email = it.trim() },
                         label = { Text("Email") },
                         leadingIcon = {
                             Icon(Icons.Default.Email, contentDescription = "Email")
                         },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        enabled = !isLoading
                     )
                     
                     Spacer(modifier = Modifier.height(16.dp))
@@ -138,7 +191,7 @@ fun LoginScreen(
                         trailingIcon = {
                             IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
                                 Icon(
-                                    if (isPasswordVisible) Icons.Default.Clear else Icons.Default.Done,
+                                    if (isPasswordVisible) Icons.Default.Done else Icons.Default.Clear,
                                     contentDescription = if (isPasswordVisible) "Hide password" else "Show password"
                                 )
                             }
@@ -146,7 +199,8 @@ fun LoginScreen(
                         visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        enabled = !isLoading
                     )
                     
                     Spacer(modifier = Modifier.height(8.dp))
@@ -156,7 +210,8 @@ fun LoginScreen(
                         onClick = {
                             Toast.makeText(context, "Password reset feature coming soon", Toast.LENGTH_SHORT).show()
                         },
-                        modifier = Modifier.align(Alignment.End)
+                        modifier = Modifier.align(Alignment.End),
+                        enabled = !isLoading
                     ) {
                         Text("Forgot Password?")
                     }
@@ -166,100 +221,63 @@ fun LoginScreen(
                     // Login Button
                     Button(
                         onClick = {
-                            if (email.isNotBlank() && password.isNotBlank()) {
-                                isLoading = true
-                                val authManager = AuthManager(context)
-                                // Try Firebase sign-in first; if unavailable or fails, fall back to local demo login
-                                authManager.signInWithFirebase(email, password,
-                                    onSuccess = { user ->
-                                        // Persist a minimal profile locally (displayName may be null)
-                                        val displayName = user.displayName ?: run {
-                                            // Extract name from email if displayName is null
-                                            val emailPart = (user.email ?: email).substringBefore("@")
-                                            emailPart.split(".").joinToString(" ") { 
-                                                it.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase() else char.toString() }
-                                            }
-                                        }
-                                        authManager.saveUserProfileIfNeeded(user.email ?: email, displayName, "Patient")
-                                        Toast.makeText(context, "Login successful! Welcome ${displayName}", Toast.LENGTH_SHORT).show()
-                                        onLoginSuccess()
-                                    },
-                                    onFailure = { ex ->
-                                        // If Firebase not available or sign-in failed, fallback to local demo login
-                                        val displayName = run {
-                                            val emailPart = email.substringBefore("@")
-                                            emailPart.split(".").joinToString(" ") { 
-                                                it.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase() else char.toString() }
-                                            }
-                                        }
-                                        authManager.localLogin(email, displayName, "Patient")
-                                        Toast.makeText(context, "Proceeding in demo mode (offline).", Toast.LENGTH_SHORT).show()
-                                        onLoginSuccess()
-                                    }
-                                )
-                            } else {
-                                Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
+                            if (email.isBlank()) {
+                                Toast.makeText(context, "Please enter your email", Toast.LENGTH_SHORT).show()
+                                return@Button
                             }
+                            if (password.isBlank()) {
+                                Toast.makeText(context, "Please enter your password", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            
+                            // Use AuthViewModel to login with proper validation
+                            viewModel.login(email, password)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(56.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        enabled = !isLoading,
+                            .height(50.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = com.example.modicanalyzer.ui.theme.ModicarePrimary
-                        )
+                        ),
+                        enabled = !isLoading
                     ) {
                         if (isLoading) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = MaterialTheme.colorScheme.onPrimary
+                                modifier = Modifier.size(24.dp),
+                                color = Color.White
                             )
                         } else {
                             Text(
-                                "Sign In",
+                                text = "Sign In",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Signup Link
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Don't have an account? ",
+                            color = Color.Gray
+                        )
+                        TextButton(
+                            onClick = onNavigateToSignup,
+                            enabled = !isLoading
+                        ) {
+                            Text(
+                                text = "Sign Up",
+                                color = com.example.modicanalyzer.ui.theme.ModicarePrimary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                 }
-            }
-            
-            Spacer(modifier = Modifier.height(32.dp))
-            
-            // Signup Navigation
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Don't have an account? ",
-                    color = Color.Gray
-                )
-                TextButton(onClick = onNavigateToSignup) {
-                    Text(
-                        "Sign Up",
-                        color = com.example.modicanalyzer.ui.theme.ModicarePrimary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Demo Access
-            OutlinedButton(
-                onClick = {
-                    val authManager = AuthManager(context)
-                    val demoInfo = authManager.getDemoUserInfo()
-                    authManager.localLogin(demoInfo.email, demoInfo.name, demoInfo.role)
-                    Toast.makeText(context, "Proceeding as demo user", Toast.LENGTH_SHORT).show()
-                    onLoginSuccess()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("Continue as Demo User")
             }
         }
     }

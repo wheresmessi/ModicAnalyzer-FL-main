@@ -18,6 +18,7 @@ import com.example.modicanalyzer.data.local.entity.UserEntity
  * 2. local_data - Stores user-generated data that syncs to Firestore
  * 
  * Version 1: Initial database schema
+ * Version 2: Added encryptedPassword field to UserEntity for offline user sync
  * 
  * Features:
  * - Type converters for custom types (SyncStatus enum)
@@ -26,7 +27,7 @@ import com.example.modicanalyzer.data.local.entity.UserEntity
  */
 @Database(
     entities = [UserEntity::class, LocalDataEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false  // Set to true and provide schema location in production
 )
 @TypeConverters(Converters::class)
@@ -46,13 +47,13 @@ abstract class AppDatabase : RoomDatabase() {
         const val DATABASE_NAME = "modicare_offline_db"
         
         /**
-         * Example migration from version 1 to 2 (for future use).
-         * When you need to modify the schema, add migrations here.
+         * Migration from version 1 to 2: Add encryptedPassword column.
+         * This field stores encrypted password for offline users until they sync to Firebase.
          */
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // Example: Add a new column to users table
-                // database.execSQL("ALTER TABLE users ADD COLUMN phoneNumber TEXT")
+                // Add encryptedPassword column to users table
+                database.execSQL("ALTER TABLE users ADD COLUMN encryptedPassword TEXT DEFAULT NULL")
             }
         }
     }

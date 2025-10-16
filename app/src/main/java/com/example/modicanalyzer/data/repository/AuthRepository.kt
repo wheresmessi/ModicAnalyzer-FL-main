@@ -5,6 +5,7 @@ import com.example.modicanalyzer.data.local.entity.UserEntity
 import com.example.modicanalyzer.data.model.AuthState
 import com.example.modicanalyzer.data.model.SyncStatus
 import com.example.modicanalyzer.data.remote.FirestoreDataSource
+import com.example.modicanalyzer.util.EncryptionUtil
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.flow.Flow
@@ -121,12 +122,13 @@ class AuthRepository @Inject constructor(
                     emit(AuthState.Error("Online signup failed: ${e.message}. Try offline mode."))
                 }
             } else {
-                // Offline signup: Store in local database
+                // Offline signup: Store in local database with encrypted password
                 val userId = UUID.randomUUID().toString()
                 val userEntity = UserEntity(
                     userId = userId,
                     email = email,
                     passwordHash = hashPassword(password),
+                    encryptedPassword = EncryptionUtil.encryptPassword(password), // Store encrypted for later sync
                     displayName = displayName,
                     isFirebaseAuth = false,
                     syncStatus = SyncStatus.PENDING
@@ -149,9 +151,11 @@ class AuthRepository @Inject constructor(
      * Log in an existing user.
      * 
      * Flow:
-     * 1. Check if user exists in local database
-     * 2. If online, try Firebase authentication
-     * 3. If offline or Firebase fails, use local authentication
+     * 1. Validate email and password are not empty
+     * 2. Check if user exists in local database
+     * 3. If online, try Firebase authentication FIRST
+     * 4. If offline OR Firebase fails with network error, use local authentication
+     * 5. ALWAYS validate password before granting access
      * 
      * @param email User's email
      * @param password User's password
@@ -166,16 +170,24 @@ class AuthRepository @Inject constructor(
         emit(AuthState.Loading)
         
         try {
+            // Input validation
+            if (email.isBlank() || password.isBlank()) {
+                emit(AuthState.Error("Email and password cannot be empty"))
+                return@flow
+            }
+            
+            // Check if user exists locally
             val localUser = userDao.getUserByEmail(email)
             
             if (isOnline) {
-                // Try Firebase authentication
+                // Online Mode: Try Firebase authentication FIRST
                 try {
                     val authResult = firebaseAuth.signInWithEmailAndPassword(email, password).await()
                     val firebaseUser = authResult.user
                     
                     if (firebaseUser != null) {
-                        // Update or create local user
+                        // Firebase authentication successful
+                        // Update or create local user record
                         val userEntity = localUser?.copy(
                             userId = firebaseUser.uid,
                             isFirebaseAuth = true,
@@ -199,30 +211,55 @@ class AuthRepository @Inject constructor(
                             isFirebaseAuth = true
                         ))
                     } else {
-                        emit(AuthState.Error("Login failed"))
+                        emit(AuthState.Error("Firebase authentication failed"))
                     }
                 } catch (e: Exception) {
-                    // Firebase login failed, try offline login
-                    if (localUser != null && verifyPassword(password, localUser.passwordHash)) {
-                        emit(AuthState.Success(
-                            userId = localUser.userId,
-                            email = localUser.email,
-                            isFirebaseAuth = false
-                        ))
+                    // Firebase authentication failed
+                    android.util.Log.e("AuthRepository", "Firebase login failed: ${e.message}", e)
+                    
+                    // Check if it's a network error or invalid credentials
+                    val errorMessage = e.message?.lowercase() ?: ""
+                    val isNetworkError = errorMessage.contains("network") ||
+                            errorMessage.contains("connection") ||
+                            errorMessage.contains("timeout")
+                    
+                    if (isNetworkError && localUser != null) {
+                        // Network error - fallback to local auth if user exists
+                        if (verifyPassword(password, localUser.passwordHash)) {
+                            emit(AuthState.Success(
+                                userId = localUser.userId,
+                                email = localUser.email,
+                                isFirebaseAuth = false
+                            ))
+                        } else {
+                            emit(AuthState.Error("Invalid password"))
+                        }
                     } else {
-                        emit(AuthState.Error("Login failed: ${e.message}"))
+                        // Invalid credentials or user doesn't exist in Firebase
+                        val message = when {
+                            errorMessage.contains("password") -> "Invalid password"
+                            errorMessage.contains("user") || errorMessage.contains("email") -> "User not found. Please sign up first."
+                            else -> "Login failed: ${e.message}"
+                        }
+                        emit(AuthState.Error(message))
                     }
                 }
             } else {
-                // Offline login: Check local database
-                if (localUser != null && verifyPassword(password, localUser.passwordHash)) {
+                // Offline Mode: MUST validate against local database
+                if (localUser == null) {
+                    emit(AuthState.Error("User not found. Please connect to internet to sign up or login for the first time."))
+                    return@flow
+                }
+                
+                // Verify password
+                if (verifyPassword(password, localUser.passwordHash)) {
                     emit(AuthState.Success(
                         userId = localUser.userId,
                         email = localUser.email,
                         isFirebaseAuth = localUser.isFirebaseAuth
                     ))
                 } else {
-                    emit(AuthState.Error("Invalid credentials or user not found"))
+                    emit(AuthState.Error("Invalid password"))
                 }
             }
         } catch (e: Exception) {
@@ -233,6 +270,14 @@ class AuthRepository @Inject constructor(
     /**
      * Sync offline users to Firebase when network becomes available.
      * Called by SyncWorker.
+     * 
+     * This method:
+     * 1. Finds users with PENDING sync status
+     * 2. Decrypts their stored password
+     * 3. Creates Firebase account with their credentials
+     * 4. Updates local user record with Firebase UID
+     * 5. Syncs profile to Firestore
+     * 6. Deletes encrypted password for security
      * 
      * @return List of user IDs that were successfully synced
      */
@@ -245,28 +290,80 @@ class AuthRepository @Inject constructor(
                 // Update sync status to SYNCING
                 userDao.updateSyncStatus(user.userId, SyncStatus.SYNCING, null)
                 
-                // This user was created offline, we can't migrate them to Firebase Auth
-                // without their password. Instead, just mark them as synced locally.
-                // In a production app, you'd need to handle this during their next login.
-                
-                // Sync profile to Firestore
-                val result = firestoreDataSource.syncUserProfile(
-                    userId = user.userId,
-                    email = user.email,
-                    displayName = user.displayName
-                )
-                
-                if (result.isSuccess) {
-                    userDao.updateSyncStatus(
-                        user.userId,
-                        SyncStatus.SYNCED,
-                        System.currentTimeMillis()
-                    )
-                    syncedUserIds.add(user.userId)
+                // Check if user has encrypted password (offline-created user)
+                if (!user.isFirebaseAuth && user.encryptedPassword != null) {
+                    try {
+                        // Decrypt the password
+                        val plainPassword = EncryptionUtil.decryptPassword(user.encryptedPassword)
+                        
+                        // Create Firebase account
+                        val authResult = firebaseAuth.createUserWithEmailAndPassword(
+                            user.email,
+                            plainPassword
+                        ).await()
+                        
+                        val firebaseUser = authResult.user
+                        if (firebaseUser != null) {
+                            // Update display name in Firebase
+                            if (user.displayName != null) {
+                                val profileUpdates = UserProfileChangeRequest.Builder()
+                                    .setDisplayName(user.displayName)
+                                    .build()
+                                firebaseUser.updateProfile(profileUpdates).await()
+                            }
+                            
+                            // Update local user with Firebase UID and remove encrypted password
+                            val updatedUser = user.copy(
+                                userId = firebaseUser.uid,
+                                isFirebaseAuth = true,
+                                syncStatus = SyncStatus.SYNCED,
+                                lastSyncedAt = System.currentTimeMillis(),
+                                encryptedPassword = null // Delete encrypted password for security
+                            )
+                            userDao.insertUser(updatedUser)
+                            
+                            // Delete old user record with temporary UUID
+                            if (user.userId != firebaseUser.uid) {
+                                userDao.deleteUser(user.userId)
+                            }
+                            
+                            // Sync profile to Firestore
+                            firestoreDataSource.syncUserProfile(
+                                userId = firebaseUser.uid,
+                                email = user.email,
+                                displayName = user.displayName
+                            )
+                            
+                            syncedUserIds.add(firebaseUser.uid)
+                            android.util.Log.d("AuthRepository", "Synced offline user: ${user.email} -> ${firebaseUser.uid}")
+                        } else {
+                            userDao.updateSyncStatus(user.userId, SyncStatus.FAILED, null)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("AuthRepository", "Failed to sync offline user ${user.email}: ${e.message}", e)
+                        userDao.updateSyncStatus(user.userId, SyncStatus.FAILED, null)
+                    }
                 } else {
-                    userDao.updateSyncStatus(user.userId, SyncStatus.FAILED, null)
+                    // User is already Firebase-authenticated, just sync profile
+                    val result = firestoreDataSource.syncUserProfile(
+                        userId = user.userId,
+                        email = user.email,
+                        displayName = user.displayName
+                    )
+                    
+                    if (result.isSuccess) {
+                        userDao.updateSyncStatus(
+                            user.userId,
+                            SyncStatus.SYNCED,
+                            System.currentTimeMillis()
+                        )
+                        syncedUserIds.add(user.userId)
+                    } else {
+                        userDao.updateSyncStatus(user.userId, SyncStatus.FAILED, null)
+                    }
                 }
             } catch (e: Exception) {
+                android.util.Log.e("AuthRepository", "User sync failed: ${e.message}", e)
                 userDao.updateSyncStatus(user.userId, SyncStatus.FAILED, null)
             }
         }

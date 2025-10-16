@@ -35,11 +35,10 @@ object AppModule {
      * 
      * Features:
      * - Singleton pattern (only one instance for the entire app)
-     * - Fallback to destructive migration for development
+     * - Migration support for schema changes
      * - Type converters for custom types
      * 
-     * In production, you should implement proper migrations instead of
-     * fallbackToDestructiveMigration().
+     * Includes migration from v1 to v2 (adds encryptedPassword field).
      */
     @Provides
     @Singleton
@@ -51,6 +50,7 @@ object AppModule {
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
         )
+            .addMigrations(AppDatabase.MIGRATION_1_2) // Add migration for encryptedPassword
             .fallbackToDestructiveMigration() // For development - use migrations in production
             .build()
     }
