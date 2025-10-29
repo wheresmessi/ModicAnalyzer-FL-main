@@ -8,6 +8,7 @@ import com.example.modicanalyzer.data.local.dao.LocalDataDao
 import com.example.modicanalyzer.data.local.dao.UserDao
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -103,6 +104,17 @@ object AppModule {
     @Singleton
     fun provideFirebaseFirestore(): FirebaseFirestore {
         return FirebaseFirestore.getInstance()
+    }
+    
+    /**
+     * Provide Firebase Storage instance.
+     * 
+     * Used for storing user-uploaded images (MRI scans, etc.)
+     */
+    @Provides
+    @Singleton
+    fun provideFirebaseStorage(): FirebaseStorage {
+        return FirebaseStorage.getInstance()
     }
     
     /**

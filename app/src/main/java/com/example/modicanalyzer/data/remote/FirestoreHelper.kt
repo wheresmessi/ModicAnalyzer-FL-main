@@ -172,6 +172,50 @@ class FirestoreHelper @Inject constructor(
     }
     
     /**
+     * Add MRI analysis entry with T1 and T2 images
+     * 
+     * @param userId Firebase Auth UID
+     * @param t1ImageUrl T1-weighted image URL from Firebase Storage
+     * @param t2ImageUrl T2-weighted image URL from Firebase Storage
+     * @param analysisResult Analysis result string (e.g., "Modic Change Detected")
+     * @param confidence Confidence score (0.0 - 1.0)
+     * @param metadata Additional metadata (processing time, model version, etc.)
+     * @return Entry ID if successful
+     */
+    suspend fun addMRIAnalysisEntry(
+        userId: String,
+        t1ImageUrl: String,
+        t2ImageUrl: String,
+        analysisResult: String,
+        confidence: Float,
+        metadata: Map<String, Any>? = null
+    ): Result<String> {
+        return try {
+            val entry = buildMap {
+                put("type", "mri_analysis")
+                put("t1ImageUrl", t1ImageUrl)
+                put("t2ImageUrl", t2ImageUrl)
+                put("analysisResult", analysisResult)
+                put("confidence", confidence)
+                if (metadata != null) put("metadata", metadata)
+                put("createdAt", FieldValue.serverTimestamp())
+            }
+            
+            val documentRef = firestore.collection(USERS_COLLECTION)
+                .document(userId)
+                .collection(DATA_ENTRIES_COLLECTION)
+                .add(entry)
+                .await()
+            
+            Log.d(TAG, "✅ MRI analysis entry added: ${documentRef.id}")
+            Result.success(documentRef.id)
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error adding MRI analysis entry", e)
+            Result.failure(e)
+        }
+    }
+    
+    /**
      * Get all data entries for a user
      * 
      * @param userId Firebase Auth UID
@@ -303,8 +347,14 @@ class FirestoreHelper @Inject constructor(
  */
 data class DataEntry(
     val id: String,
-    val imageUrl: String,
+    val imageUrl: String = "",  // For single images (legacy)
     val caption: String? = null,
     val metadata: Map<String, Any>? = null,
-    val createdAt: Long? = null
+    val createdAt: Long? = null,
+    // MRI-specific fields
+    val type: String? = null,  // "mri_analysis", etc.
+    val t1ImageUrl: String? = null,
+    val t2ImageUrl: String? = null,
+    val analysisResult: String? = null,
+    val confidence: Float? = null
 )

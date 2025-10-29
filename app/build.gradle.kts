@@ -80,6 +80,9 @@ dependencies {
     // Firestore - Cloud database
     implementation("com.google.firebase:firebase-firestore-ktx:24.10.3")
     
+    // Firebase Storage - Image/file storage
+    implementation("com.google.firebase:firebase-storage-ktx:20.3.0")
+    
     // Coroutines - Async operations
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")

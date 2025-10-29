@@ -35,6 +35,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.example.modicanalyzer.viewmodel.UserProfileViewModel
+import com.example.modicanalyzer.data.remote.FirestoreHelper
+import com.example.modicanalyzer.data.remote.FirebaseStorageHelper
+import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -45,6 +48,16 @@ import kotlinx.coroutines.withContext
 class SimpleMainActivity : ComponentActivity() {
     private lateinit var modicAnalyzer: ModicAnalyzer
     private val userProfileViewModel: UserProfileViewModel by viewModels()
+    
+    // Firebase dependencies injected by Hilt
+    @javax.inject.Inject
+    lateinit var firestoreHelper: FirestoreHelper
+    
+    @javax.inject.Inject
+    lateinit var storageHelper: FirebaseStorageHelper
+    
+    @javax.inject.Inject
+    lateinit var firebaseAuth: FirebaseAuth
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,7 +71,10 @@ class SimpleMainActivity : ComponentActivity() {
             com.example.modicanalyzer.ui.theme.ModicAnalyzerTheme(darkTheme = false, dynamicColor = false) {
                 MainScreen(
                     analyzer = modicAnalyzer,
-                    userProfileViewModel = userProfileViewModel
+                    userProfileViewModel = userProfileViewModel,
+                    firestoreHelper = firestoreHelper,
+                    storageHelper = storageHelper,
+                    firebaseAuth = firebaseAuth
                 )
             }
         }
@@ -74,7 +90,10 @@ class SimpleMainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(
     analyzer: ModicAnalyzer,
-    userProfileViewModel: UserProfileViewModel
+    userProfileViewModel: UserProfileViewModel,
+    firestoreHelper: FirestoreHelper,
+    storageHelper: FirebaseStorageHelper,
+    firebaseAuth: FirebaseAuth
 ) {
     var selectedScreen by remember { mutableStateOf(0) }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -159,7 +178,7 @@ fun MainScreen(
         }
     ) { paddingValues ->
         when (selectedScreen) {
-            0 -> AnalyzeScreen(analyzer, paddingValues)
+            0 -> AnalyzeScreen(analyzer, paddingValues, firestoreHelper, storageHelper, firebaseAuth)
             1 -> Box(modifier = Modifier.padding(paddingValues)) { ModicGuideScreen() }
             2 -> Box(modifier = Modifier.padding(paddingValues)) { 
                 ProfileScreen(
@@ -223,12 +242,19 @@ fun StatusIndicator() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AnalyzeScreen(analyzer: ModicAnalyzer, paddingValues: PaddingValues) {
+fun AnalyzeScreen(
+    analyzer: ModicAnalyzer, 
+    paddingValues: PaddingValues,
+    firestoreHelper: FirestoreHelper,
+    storageHelper: FirebaseStorageHelper,
+    firebaseAuth: FirebaseAuth
+) {
     var t1Image by remember { mutableStateOf<Bitmap?>(null) }
     var t2Image by remember { mutableStateOf<Bitmap?>(null) }
     var analysisResult by remember { mutableStateOf<String?>(null) }
     var isAnalyzing by remember { mutableStateOf(false) }
     var showResultDialog by remember { mutableStateOf(false) }
+    var isSavingToCloud by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
     
@@ -268,6 +294,79 @@ fun AnalyzeScreen(analyzer: ModicAnalyzer, paddingValues: PaddingValues) {
                     analysisResult = result.getDisplayText()
                     showResultDialog = true
                 }
+                
+                // Save to cloud (Firebase Storage + Firestore) after successful analysis
+                val userId = firebaseAuth.currentUser?.uid
+                if (userId != null) {
+                    isSavingToCloud = true
+                    
+                    try {
+                        android.util.Log.d("AnalyzeScreen", "📤 Uploading images to Firebase Storage...")
+                        
+                        // Upload compressed images to Firebase Storage
+                        val uploadResult = storageHelper.uploadMRIImages(userId, t1, t2)
+                        
+                        uploadResult.onSuccess { (t1Url, t2Url) ->
+                            android.util.Log.d("AnalyzeScreen", "✅ Images uploaded successfully")
+                            
+                            // Save analysis entry to Firestore
+                            val metadata = buildMap<String, Any> {
+                                put("mode", result.analysisMode)
+                                put("timestamp", result.timestamp)
+                                put("hasModicChange", result.hasModicChange)
+                                put("noModicScore", result.noModicScore)
+                                put("modicScore", result.modicScore)
+                                result.changeType?.let { put("changeType", it) }
+                                result.details?.let { put("details", it) }
+                            }
+                            
+                            // Determine analysis result label
+                            val resultLabel = if (result.hasModicChange) {
+                                "Modic Change Detected"
+                            } else {
+                                "No Modic Changes"
+                            }
+                            
+                            (context as ComponentActivity).lifecycleScope.launch {
+                                firestoreHelper.addMRIAnalysisEntry(
+                                    userId = userId,
+                                    t1ImageUrl = t1Url,
+                                    t2ImageUrl = t2Url,
+                                    analysisResult = resultLabel,
+                                    confidence = result.confidence,
+                                    metadata = metadata
+                                ).onSuccess { entryId ->
+                                    withContext(Dispatchers.Main) {
+                                        isSavingToCloud = false
+                                        android.util.Log.d("AnalyzeScreen", "🎉 Analysis saved to cloud: $entryId")
+                                        Toast.makeText(context, "Analysis saved to cloud ✅", Toast.LENGTH_SHORT).show()
+                                    }
+                                }.onFailure { e ->
+                                    withContext(Dispatchers.Main) {
+                                        isSavingToCloud = false
+                                        android.util.Log.e("AnalyzeScreen", "❌ Failed to save to Firestore", e)
+                                        Toast.makeText(context, "Failed to save analysis: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        }.onFailure { e ->
+                            withContext(Dispatchers.Main) {
+                                isSavingToCloud = false
+                                android.util.Log.e("AnalyzeScreen", "❌ Failed to upload images", e)
+                                Toast.makeText(context, "Failed to upload images: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            isSavingToCloud = false
+                            android.util.Log.e("AnalyzeScreen", "❌ Cloud save error", e)
+                        }
+                    }
+                } else {
+                    android.util.Log.w("AnalyzeScreen", "User not logged in, skipping cloud save")
+                }
+                
             } catch (exception: Exception) {
                 withContext(Dispatchers.Main) {
                     isAnalyzing = false
@@ -383,6 +482,28 @@ fun AnalyzeScreen(analyzer: ModicAnalyzer, paddingValues: PaddingValues) {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("Analyze Images", color = Color.White, fontSize = 16.sp)
                             }
+                        }
+                    }
+                    
+                    // Cloud save status indicator
+                    if (isSavingToCloud) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = com.example.modicanalyzer.ui.theme.ModicarePrimary,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Saving to cloud...",
+                                fontSize = 12.sp,
+                                color = Color(0xFF6B7280)
+                            )
                         }
                     }
                 }
