@@ -26,8 +26,24 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.lifecycleScope
+import com.example.modicanalyzer.data.remote.FirestoreHelper
+import com.example.modicanalyzer.utils.SignupValidator
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.UserProfileChangeRequest
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class SignupActivity : ComponentActivity() {
+    
+    @Inject
+    lateinit var firestoreHelper: FirestoreHelper
+    
+    @Inject
+    lateinit var firebaseAuth: FirebaseAuth
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -42,8 +58,97 @@ class SignupActivity : ComponentActivity() {
                     onNavigateToLogin = {
                         // Navigate back to login activity
                         finish() // This will return to login activity
+                    },
+                    onSignup = { name, email, phone, password, role ->
+                        signupWithFirestore(name, email, phone, password, role)
                     }
                 )
+            }
+        }
+    }
+    
+    private fun signupWithFirestore(
+        name: String,
+        email: String,
+        phone: String,
+        password: String,
+        role: String
+    ) {
+        lifecycleScope.launch {
+            try {
+                // Create Firebase Auth user
+                firebaseAuth.createUserWithEmailAndPassword(email, password)
+                    .addOnSuccessListener { authResult ->
+                        val user = authResult.user
+                        if (user != null) {
+                            // Update Firebase Auth profile with display name
+                            val profileUpdates = UserProfileChangeRequest.Builder()
+                                .setDisplayName(name)
+                                .build()
+                            
+                            user.updateProfile(profileUpdates)
+                                .addOnSuccessListener {
+                                    // Now create Firestore profile
+                                    lifecycleScope.launch {
+                                        val result = firestoreHelper.createOrUpdateUserProfile(
+                                            userId = user.uid,
+                                            name = name,
+                                            email = email,
+                                            role = role.lowercase(),
+                                            profileImageUrl = null
+                                        )
+                                        
+                                        if (result.isSuccess) {
+                                            // Also save locally for backward compatibility
+                                            val authManager = AuthManager(this@SignupActivity)
+                                            authManager.saveUserProfileIfNeeded(email, name, role)
+                                            
+                                            Toast.makeText(
+                                                this@SignupActivity,
+                                                "✅ Account created successfully! Welcome, $name",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            
+                                            startActivity(Intent(this@SignupActivity, SimpleMainActivity::class.java))
+                                            finish()
+                                        } else {
+                                            Toast.makeText(
+                                                this@SignupActivity,
+                                                "Account created but profile save failed: ${result.exceptionOrNull()?.message}",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    }
+                                }
+                                .addOnFailureListener { e ->
+                                    Toast.makeText(
+                                        this@SignupActivity,
+                                        "Failed to update profile: ${e.message}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        // Fallback to local signup
+                        val authManager = AuthManager(this@SignupActivity)
+                        authManager.localLogin(email, name, role)
+                        
+                        Toast.makeText(
+                            this@SignupActivity,
+                            "Account created locally: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        
+                        startActivity(Intent(this@SignupActivity, SimpleMainActivity::class.java))
+                        finish()
+                    }
+            } catch (e: Exception) {
+                Toast.makeText(
+                    this@SignupActivity,
+                    "Signup failed: ${e.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
@@ -53,7 +158,8 @@ class SignupActivity : ComponentActivity() {
 @Composable
 fun SignupScreen(
     onSignupSuccess: () -> Unit,
-    onNavigateToLogin: () -> Unit
+    onNavigateToLogin: () -> Unit,
+    onSignup: (String, String, String, String, String) -> Unit = { _, _, _, _, _ -> }
 ) {
     val context = LocalContext.current
     var fullName by remember { mutableStateOf("") }
@@ -67,6 +173,13 @@ fun SignupScreen(
     var isLoading by remember { mutableStateOf(false) }
     var selectedRole by remember { mutableStateOf("Patient") }
     val roles = listOf("Patient", "Doctor", "Radiologist", "Researcher")
+    
+    // Validation states
+    var nameError by remember { mutableStateOf<String?>(null) }
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var phoneError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    var confirmPasswordError by remember { mutableStateOf<String?>(null) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -131,13 +244,31 @@ fun SignupScreen(
                     // Full Name Field
                     OutlinedTextField(
                         value = fullName,
-                        onValueChange = { fullName = it },
+                        onValueChange = { 
+                            fullName = it
+                            nameError = if (it.isNotBlank()) {
+                                val result = SignupValidator.validateFullName(it.trim())
+                                if (!result.isValid) result.errorMessage else null
+                            } else null
+                        },
                         label = { Text("Full Name") },
                         leadingIcon = {
                             Icon(Icons.Default.Person, contentDescription = "Full Name")
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        isError = nameError != null,
+                        supportingText = {
+                            if (nameError != null) {
+                                Text(
+                                    text = nameError!!,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 12.sp
+                                )
+                            } else {
+                                Text("Letters and spaces only", fontSize = 12.sp, color = Color.Gray)
+                            }
+                        }
                     )
                     
                     Spacer(modifier = Modifier.height(16.dp))
@@ -145,14 +276,32 @@ fun SignupScreen(
                     // Email Field
                     OutlinedTextField(
                         value = email,
-                        onValueChange = { email = it },
+                        onValueChange = { 
+                            email = it
+                            emailError = if (it.isNotBlank()) {
+                                val result = SignupValidator.validateEmail(it.trim())
+                                if (!result.isValid) result.errorMessage else null
+                            } else null
+                        },
                         label = { Text("Email Address") },
                         leadingIcon = {
                             Icon(Icons.Default.Email, contentDescription = "Email")
                         },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        isError = emailError != null,
+                        supportingText = {
+                            if (emailError != null) {
+                                Text(
+                                    text = emailError!!,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 12.sp
+                                )
+                            } else {
+                                Text("Valid email format required", fontSize = 12.sp, color = Color.Gray)
+                            }
+                        }
                     )
                     
                     Spacer(modifier = Modifier.height(16.dp))
@@ -160,14 +309,35 @@ fun SignupScreen(
                     // Phone Field
                     OutlinedTextField(
                         value = phone,
-                        onValueChange = { phone = it },
+                        onValueChange = { 
+                            // Only allow digits
+                            if (it.isEmpty() || it.matches(Regex("^[0-9]*$"))) {
+                                phone = it.take(10) // Limit to 10 digits
+                                phoneError = if (it.isNotBlank()) {
+                                    val result = SignupValidator.validatePhoneNumber(it)
+                                    if (!result.isValid) result.errorMessage else null
+                                } else null
+                            }
+                        },
                         label = { Text("Phone Number") },
                         leadingIcon = {
                             Icon(Icons.Default.Phone, contentDescription = "Phone")
                         },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        isError = phoneError != null,
+                        supportingText = {
+                            if (phoneError != null) {
+                                Text(
+                                    text = phoneError!!,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 12.sp
+                                )
+                            } else {
+                                Text("10 digits only", fontSize = 12.sp, color = Color.Gray)
+                            }
+                        }
                     )
                     
                     Spacer(modifier = Modifier.height(16.dp))
@@ -216,7 +386,18 @@ fun SignupScreen(
                     // Password Field
                     OutlinedTextField(
                         value = password,
-                        onValueChange = { password = it },
+                        onValueChange = { 
+                            password = it
+                            passwordError = if (it.isNotBlank()) {
+                                val result = SignupValidator.validatePassword(it)
+                                if (!result.isValid) result.errorMessage else null
+                            } else null
+                            // Also revalidate confirm password
+                            if (confirmPassword.isNotBlank()) {
+                                val confirmResult = SignupValidator.validateConfirmPassword(it, confirmPassword)
+                                confirmPasswordError = if (!confirmResult.isValid) confirmResult.errorMessage else null
+                            }
+                        },
                         label = { Text("Password") },
                         leadingIcon = {
                             Icon(Icons.Default.Lock, contentDescription = "Password")
@@ -232,7 +413,19 @@ fun SignupScreen(
                         visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        isError = passwordError != null,
+                        supportingText = {
+                            if (passwordError != null) {
+                                Text(
+                                    text = passwordError!!,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 12.sp
+                                )
+                            } else {
+                                Text("8+ chars, uppercase, lowercase, number, special char", fontSize = 12.sp, color = Color.Gray)
+                            }
+                        }
                     )
                     
                     Spacer(modifier = Modifier.height(16.dp))
@@ -240,7 +433,13 @@ fun SignupScreen(
                     // Confirm Password Field
                     OutlinedTextField(
                         value = confirmPassword,
-                        onValueChange = { confirmPassword = it },
+                        onValueChange = { 
+                            confirmPassword = it
+                            confirmPasswordError = if (it.isNotBlank()) {
+                                val result = SignupValidator.validateConfirmPassword(password, it)
+                                if (!result.isValid) result.errorMessage else null
+                            } else null
+                        },
                         label = { Text("Confirm Password") },
                         leadingIcon = {
                             Icon(Icons.Default.Lock, contentDescription = "Confirm Password")
@@ -257,17 +456,17 @@ fun SignupScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        isError = confirmPassword.isNotBlank() && password != confirmPassword
+                        isError = confirmPasswordError != null,
+                        supportingText = {
+                            if (confirmPasswordError != null) {
+                                Text(
+                                    text = confirmPasswordError!!,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
                     )
-                    
-                    if (confirmPassword.isNotBlank() && password != confirmPassword) {
-                        Text(
-                            text = "Passwords do not match",
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(start = 16.dp, top = 4.dp)
-                        )
-                    }
                     
                     Spacer(modifier = Modifier.height(24.dp))
                     
@@ -291,32 +490,24 @@ fun SignupScreen(
                     // Signup Button
                     Button(
                         onClick = {
-                            when {
-                                fullName.isBlank() -> Toast.makeText(context, "Please enter your full name", Toast.LENGTH_SHORT).show()
-                                email.isBlank() -> Toast.makeText(context, "Please enter your email", Toast.LENGTH_SHORT).show()
-                                phone.isBlank() -> Toast.makeText(context, "Please enter your phone number", Toast.LENGTH_SHORT).show()
-                                password.isBlank() -> Toast.makeText(context, "Please enter a password", Toast.LENGTH_SHORT).show()
-                                password != confirmPassword -> Toast.makeText(context, "Passwords do not match", Toast.LENGTH_SHORT).show()
-                                password.length < 6 -> Toast.makeText(context, "Password must be at least 6 characters", Toast.LENGTH_SHORT).show()
-                                !acceptTerms -> Toast.makeText(context, "Please accept the terms and conditions", Toast.LENGTH_SHORT).show()
-                                else -> {
-                                    isLoading = true
-                                    val authManager = AuthManager(context)
-                                    // Try to create Firebase user; fall back to local session if Firebase not available
-                                    authManager.createUserWithFirebase(email, password,
-                                        onSuccess = { user ->
-                                            authManager.saveUserProfileIfNeeded(user.email ?: email, fullName, selectedRole)
-                                            Toast.makeText(context, "Account created successfully! Welcome ${fullName}", Toast.LENGTH_SHORT).show()
-                                            onSignupSuccess()
-                                        },
-                                        onFailure = { ex ->
-                                            // Fallback: local login/signup
-                                            authManager.localLogin(email, fullName, selectedRole)
-                                            Toast.makeText(context, "Account created locally (demo).", Toast.LENGTH_SHORT).show()
-                                            onSignupSuccess()
-                                        }
-                                    )
-                                }
+                            // Comprehensive validation
+                            val validationResults = SignupValidator.validateSignupForm(
+                                fullName = fullName.trim(),
+                                email = email.trim(),
+                                phone = phone.trim(),
+                                password = password,
+                                confirmPassword = confirmPassword,
+                                acceptedTerms = acceptTerms
+                            )
+                            
+                            if (SignupValidator.isAllValid(validationResults)) {
+                                isLoading = true
+                                // Use Firestore integration
+                                onSignup(fullName.trim(), email.trim(), phone.trim(), password, selectedRole)
+                            } else {
+                                // Show first validation error
+                                val errorMessage = SignupValidator.getFirstError(validationResults)
+                                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
                             }
                         },
                         modifier = Modifier

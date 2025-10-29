@@ -20,6 +20,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.modicanalyzer.viewmodel.UserProfileViewModel
 
 @Composable
 fun ProfileScreen(
@@ -27,15 +29,16 @@ fun ProfileScreen(
     onPrivacyPolicyClick: () -> Unit = {},
     onModelSettingsClick: () -> Unit = {},
     onSignOutClick: () -> Unit = {},
-    onNavigateBack: () -> Unit = {}
+    onNavigateBack: () -> Unit = {},
+    userProfileViewModel: UserProfileViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val authManager = AuthManager(context)
     
-    // Get user information from AuthManager
-    val userName = authManager.getUserName() ?: "Guest User"
-    val userRole = authManager.getUserRole() ?: "Patient"
-    val userEmail = authManager.getUserEmail() ?: "No email available"
+    // Get user information from Firestore via UserProfileViewModel
+    val userName = userProfileViewModel.getUserName().takeIf { it.isNotBlank() } ?: "Guest User"
+    val userRole = userProfileViewModel.getUserRole().takeIf { it.isNotBlank() } ?: "Patient"
+    val userEmail = userProfileViewModel.getUserEmail().takeIf { it.isNotBlank() } ?: "No email available"
     
     LazyColumn(
         modifier = Modifier

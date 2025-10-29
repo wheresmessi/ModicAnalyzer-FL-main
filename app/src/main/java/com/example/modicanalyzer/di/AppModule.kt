@@ -84,6 +84,9 @@ object AppModule {
     
     /**
      * Provide Firebase Firestore instance.
+     * 
+     * Uses default database (FREE on Spark Plan).
+     * Custom databases require Blaze Plan with billing enabled.
      */
     @Provides
     @Singleton

@@ -90,7 +90,7 @@ class AuthViewModel @Inject constructor(
                 displayName = displayName?.trim()
             )
             
-            android.util.Log.d("AuthViewModel", "Validation results: ${validationResults.values.map { "${it.field}=${it.isValid}" }}")
+            android.util.Log.d("AuthViewModel", "Validation results: ${validationResults.size} fields validated")
             
             // Check if any validation failed
             val firstError = validationResults.values.firstOrNull { !it.isValid }
@@ -142,7 +142,7 @@ class AuthViewModel @Inject constructor(
                 password = password
             )
             
-            android.util.Log.d("AuthViewModel", "Login validation results: ${validationResults.values.map { "${it.field}=${it.isValid}" }}")
+            android.util.Log.d("AuthViewModel", "Login validation: ${validationResults.size} fields validated")
             
             // Check if any validation failed
             val firstError = validationResults.values.firstOrNull { !it.isValid }
@@ -226,13 +226,13 @@ class AuthViewModel @Inject constructor(
     
     /**
      * Check if a user is currently authenticated.
-     * FIXED: Now checks BOTH Firebase AND Room database for offline users
+     * Only checks Firebase Auth - removed automatic local user login to prevent demo account auto-login
      */
     private fun checkCurrentUser() {
         viewModelScope.launch {
             android.util.Log.d("AuthViewModel", "checkCurrentUser: Checking authentication status...")
             
-            // First check Firebase
+            // Only check Firebase - no automatic local user login
             val firebaseUser = authRepository.getCurrentFirebaseUser()
             android.util.Log.d("AuthViewModel", "checkCurrentUser: Firebase user = ${firebaseUser?.email ?: "null"}")
             
@@ -243,30 +243,12 @@ class AuthViewModel @Inject constructor(
                     email = firebaseUser.email ?: "",
                     isFirebaseAuth = true
                 )
+                saveLastLoggedInUserId(firebaseUser.uid)
             } else {
-                // No Firebase user, check Room database for offline users
-                val lastLoggedInUserId = getLastLoggedInUserId()
-                android.util.Log.d("AuthViewModel", "checkCurrentUser: Last logged in userId from SharedPrefs = $lastLoggedInUserId")
-                
-                if (lastLoggedInUserId != null) {
-                    val localUser = authRepository.getUserById(lastLoggedInUserId)
-                    android.util.Log.d("AuthViewModel", "checkCurrentUser: Local user from Room = ${localUser?.email ?: "null"}")
-                    
-                    if (localUser != null) {
-                        android.util.Log.d("AuthViewModel", "checkCurrentUser: Local user found, logging in as ${localUser.email}")
-                        _authState.value = AuthState.Success(
-                            userId = localUser.userId,
-                            email = localUser.email,
-                            isFirebaseAuth = localUser.isFirebaseAuth
-                        )
-                    } else {
-                        android.util.Log.d("AuthViewModel", "checkCurrentUser: No local user found, setting Unauthenticated")
-                        _authState.value = AuthState.Unauthenticated
-                    }
-                } else {
-                    android.util.Log.d("AuthViewModel", "checkCurrentUser: No saved userId, setting Unauthenticated")
-                    _authState.value = AuthState.Unauthenticated
-                }
+                android.util.Log.d("AuthViewModel", "checkCurrentUser: No Firebase user, setting Unauthenticated")
+                // Clear any saved session since there's no Firebase user
+                clearLastLoggedInUserId()
+                _authState.value = AuthState.Unauthenticated
             }
         }
     }

@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -33,13 +34,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
+import com.example.modicanalyzer.viewmodel.UserProfileViewModel
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 
+@AndroidEntryPoint
 class SimpleMainActivity : ComponentActivity() {
     private lateinit var modicAnalyzer: ModicAnalyzer
+    private val userProfileViewModel: UserProfileViewModel by viewModels()
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,7 +56,10 @@ class SimpleMainActivity : ComponentActivity() {
         
         setContent {
             com.example.modicanalyzer.ui.theme.ModicAnalyzerTheme(darkTheme = false, dynamicColor = false) {
-                MainScreen(analyzer = modicAnalyzer)
+                MainScreen(
+                    analyzer = modicAnalyzer,
+                    userProfileViewModel = userProfileViewModel
+                )
             }
         }
     }
@@ -64,18 +72,25 @@ class SimpleMainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(analyzer: ModicAnalyzer) {
+fun MainScreen(
+    analyzer: ModicAnalyzer,
+    userProfileViewModel: UserProfileViewModel
+) {
     var selectedScreen by remember { mutableStateOf(0) }
     val context = androidx.compose.ui.platform.LocalContext.current
     
+    // Observe user profile
+    val userProfile by userProfileViewModel.userProfile.collectAsState()
+    
+    // NOTE: Auto-download disabled to prevent app crashes
+    // Users can manually download model from Profile → Model Settings
+    // The background download was causing "Module config changed" crashes
+    
     Scaffold(
         topBar = {
-            // Simple clean top bar without blur
+            // Simple clean top bar with user name from Firestore
             TopAppBar(
                 title = {
-                    val context = androidx.compose.ui.platform.LocalContext.current
-                    val authManager = AuthManager(context)
-                    
                     Column {
                         Text(
                             text = "SpinoCare",
@@ -83,13 +98,15 @@ fun MainScreen(analyzer: ModicAnalyzer) {
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
-                        if (authManager.isLoggedIn()) {
-                            Text(
-                                text = "Welcome, ${authManager.getUserName() ?: "User"}",
-                                fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.8f)
-                            )
-                        }
+                        // Display name from Firestore or fallback to AuthManager
+                        val userName = userProfile?.name 
+                            ?: userProfileViewModel.getUserName()
+                        
+                        Text(
+                            text = "Welcome, $userName",
+                            fontSize = 12.sp,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

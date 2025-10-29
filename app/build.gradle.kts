@@ -75,6 +75,7 @@ dependencies {
     kapt("com.google.dagger:hilt-android-compiler:2.50")
     implementation("androidx.hilt:hilt-work:1.1.0")
     kapt("androidx.hilt:hilt-compiler:1.1.0")
+    implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
     
     // Firestore - Cloud database
     implementation("com.google.firebase:firebase-firestore-ktx:24.10.3")
