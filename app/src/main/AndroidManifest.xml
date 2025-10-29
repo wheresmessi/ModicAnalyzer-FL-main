@@ -96,37 +96,6 @@
             android:label="Model Settings"
             android:theme="@style/Theme.SpinoCare" />
             
-        <!-- ============================================ -->
-        <!-- FIRESTORE EXAMPLES - For Testing Only -->
-        <!-- ============================================ -->
-        
-        <!-- Firestore Examples Launcher - Main hub for all examples -->
-        <activity
-            android:name=".examples.FirestoreExamplesLauncher"
-            android:exported="true"
-            android:label="🔥 Firestore Examples"
-            android:theme="@style/Theme.SpinoCare">
-            <!-- Show in launcher for easy access -->
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-        
-        <!-- Firestore Example Activity - Shows basic operations -->
-        <activity
-            android:name=".examples.FirestoreExampleActivity"
-            android:exported="true"
-            android:label="Firestore Operations"
-            android:theme="@style/Theme.SpinoCare" />
-        
-        <!-- Signup with Firestore Example - Shows signup integration -->
-        <activity
-            android:name=".examples.SignupWithFirestoreExample"
-            android:exported="true"
-            android:label="Signup Example (Firestore)"
-            android:theme="@style/Theme.SpinoCare" />
-            
     </application>
 
 </manifest>

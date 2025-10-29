@@ -38,7 +38,9 @@ object AppModule {
      * - Migration support for schema changes
      * - Type converters for custom types
      * 
-     * Includes migration from v1 to v2 (adds encryptedPassword field).
+     * Includes migrations:
+     * - v1 to v2: adds encryptedPassword field
+     * - v2 to v3: adds pending_signups table
      */
     @Provides
     @Singleton
@@ -50,7 +52,7 @@ object AppModule {
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
         )
-            .addMigrations(AppDatabase.MIGRATION_1_2) // Add migration for encryptedPassword
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
             .fallbackToDestructiveMigration() // For development - use migrations in production
             .build()
     }
@@ -71,6 +73,15 @@ object AppModule {
     @Singleton
     fun provideLocalDataDao(database: AppDatabase): LocalDataDao {
         return database.localDataDao()
+    }
+    
+    /**
+     * Provide PendingSignupDao from Room Database.
+     */
+    @Provides
+    @Singleton
+    fun providePendingSignupDao(database: AppDatabase): com.example.modicanalyzer.data.local.dao.PendingSignupDao {
+        return database.pendingSignupDao()
     }
     
     /**

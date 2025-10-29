@@ -7,18 +7,22 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.modicanalyzer.data.local.dao.LocalDataDao
 import com.example.modicanalyzer.data.local.dao.UserDao
+import com.example.modicanalyzer.data.local.dao.PendingSignupDao
 import com.example.modicanalyzer.data.local.entity.LocalDataEntity
 import com.example.modicanalyzer.data.local.entity.UserEntity
+import com.example.modicanalyzer.data.local.entity.PendingSignupEntity
 
 /**
  * Main Room Database for the application.
  * 
- * Manages two tables:
+ * Manages three tables:
  * 1. users - Stores user authentication data with offline-first support
  * 2. local_data - Stores user-generated data that syncs to Firestore
+ * 3. pending_signups - Queue for offline signup requests
  * 
  * Version 1: Initial database schema
  * Version 2: Added encryptedPassword field to UserEntity for offline user sync
+ * Version 3: Added pending_signups table for offline signup queue
  * 
  * Features:
  * - Type converters for custom types (SyncStatus enum)
@@ -26,8 +30,8 @@ import com.example.modicanalyzer.data.local.entity.UserEntity
  * - Singleton pattern via Hilt dependency injection
  */
 @Database(
-    entities = [UserEntity::class, LocalDataEntity::class],
-    version = 2,
+    entities = [UserEntity::class, LocalDataEntity::class, PendingSignupEntity::class],
+    version = 3,
     exportSchema = false  // Set to true and provide schema location in production
 )
 @TypeConverters(Converters::class)
@@ -43,6 +47,11 @@ abstract class AppDatabase : RoomDatabase() {
      */
     abstract fun localDataDao(): LocalDataDao
     
+    /**
+     * Provides access to PendingSignup table operations.
+     */
+    abstract fun pendingSignupDao(): PendingSignupDao
+    
     companion object {
         const val DATABASE_NAME = "modicare_offline_db"
         
@@ -54,6 +63,29 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(database: SupportSQLiteDatabase) {
                 // Add encryptedPassword column to users table
                 database.execSQL("ALTER TABLE users ADD COLUMN encryptedPassword TEXT DEFAULT NULL")
+            }
+        }
+        
+        /**
+         * Migration from version 2 to 3: Add pending_signups table.
+         * This table queues signup requests when offline.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS pending_signups (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        fullName TEXT NOT NULL,
+                        email TEXT NOT NULL,
+                        phone TEXT NOT NULL,
+                        passwordHash TEXT NOT NULL,
+                        role TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'PENDING',
+                        errorMessage TEXT,
+                        retryCount INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
             }
         }
     }

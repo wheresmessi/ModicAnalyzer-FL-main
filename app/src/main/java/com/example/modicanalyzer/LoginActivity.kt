@@ -1,6 +1,9 @@
 package com.example.modicanalyzer
 
+import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -25,17 +28,44 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import com.example.modicanalyzer.data.local.dao.PendingSignupDao
+import com.example.modicanalyzer.data.local.entity.PendingSignupEntity
 import com.example.modicanalyzer.data.model.AuthState
+import com.example.modicanalyzer.data.remote.FirestoreHelper
 import com.example.modicanalyzer.viewmodel.AuthViewModel
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.UserProfileChangeRequest
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class LoginActivity : ComponentActivity() {
     
+    companion object {
+        private const val TAG = "LoginActivity"
+    }
+    
     private val authViewModel: AuthViewModel by viewModels()
+    
+    @Inject
+    lateinit var pendingSignupDao: PendingSignupDao
+    
+    @Inject
+    lateinit var firestoreHelper: FirestoreHelper
+    
+    @Inject
+    lateinit var firebaseAuth: FirebaseAuth
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        android.util.Log.d(TAG, "=== LoginActivity onCreate ===")
+        android.util.Log.d(TAG, "Network available: ${isNetworkAvailable()}")
+        
+        // Process any pending signups from queue
+        processPendingSignups()
         
         setContent {
             com.example.modicanalyzer.ui.theme.ModicAnalyzerTheme(darkTheme = false, dynamicColor = false) {
@@ -50,6 +80,133 @@ class LoginActivity : ComponentActivity() {
                     }
                 )
             }
+        }
+    }
+    
+    private fun isNetworkAvailable(): Boolean {
+        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+    
+    /**
+     * Process any pending signups from offline queue
+     */
+    private fun processPendingSignups() {
+        if (!isNetworkAvailable()) {
+            android.util.Log.d(TAG, "No network - skipping pending signup processing")
+            return
+        }
+        
+        lifecycleScope.launch {
+            try {
+                val pendingSignups = pendingSignupDao.getPendingSignups()
+                
+                if (pendingSignups.isEmpty()) {
+                    android.util.Log.d(TAG, "No pending signups to process")
+                    return@launch
+                }
+                
+                android.util.Log.i(TAG, "🚀 Processing ${pendingSignups.size} pending signup(s) from queue...")
+                
+                pendingSignups.forEach { signup ->
+                    processQueuedSignup(signup)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Error processing pending signups: ${e.message}", e)
+            }
+        }
+    }
+    
+    /**
+     * Process a single queued signup
+     */
+    private suspend fun processQueuedSignup(signup: PendingSignupEntity) {
+        android.util.Log.d(TAG, "Processing queued signup: ${signup.email}")
+        
+        try {
+            // Update status to processing
+            pendingSignupDao.updateSignup(signup.copy(status = PendingSignupEntity.SignupStatus.PROCESSING))
+            
+            // Decrypt password
+            android.util.Log.d(TAG, "🔐 Decrypting password for ${signup.email}...")
+            val decryptedPassword = PendingSignupEntity.decryptPassword(signup.passwordHash)
+            android.util.Log.i(TAG, "✅ Password decrypted")
+            
+            // Create Firebase Auth account
+            android.util.Log.d(TAG, "🔥 Creating Firebase Auth account for ${signup.email}...")
+            firebaseAuth.createUserWithEmailAndPassword(signup.email, decryptedPassword)
+                .addOnSuccessListener { authResult ->
+                    val user = authResult.user
+                    if (user != null) {
+                        android.util.Log.i(TAG, "✅ Firebase Auth account created! UID: ${user.uid}")
+                        
+                        // Update Firebase profile
+                        val profileUpdates = UserProfileChangeRequest.Builder()
+                            .setDisplayName(signup.fullName)
+                            .build()
+                        
+                        user.updateProfile(profileUpdates)
+                            .addOnSuccessListener {
+                                android.util.Log.i(TAG, "✅ Firebase profile updated with name")
+                                
+                                // Create Firestore profile
+                                lifecycleScope.launch {
+                                    android.util.Log.d(TAG, "📄 Creating Firestore profile...")
+                                    val result = firestoreHelper.createOrUpdateUserProfile(
+                                        userId = user.uid,
+                                        name = signup.fullName,
+                                        email = signup.email,
+                                        role = signup.role.lowercase(),
+                                        profileImageUrl = null
+                                    )
+                                    
+                                    if (result.isSuccess) {
+                                        android.util.Log.i(TAG, "🎉 QUEUED SIGNUP COMPLETED: ${signup.email}")
+                                        pendingSignupDao.markAsCompleted(signup.id)
+                                        
+                                        runOnUiThread {
+                                            Toast.makeText(
+                                                this@LoginActivity,
+                                                "✅ Account created: ${signup.fullName}",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    } else {
+                                        val error = result.exceptionOrNull()?.message ?: "Unknown error"
+                                        android.util.Log.e(TAG, "❌ Firestore profile creation failed: $error")
+                                        pendingSignupDao.markAsFailed(signup.id, "Firestore error: $error")
+                                    }
+                                }
+                            }
+                            .addOnFailureListener { e ->
+                                android.util.Log.e(TAG, "❌ Profile update failed: ${e.message}")
+                                lifecycleScope.launch {
+                                    pendingSignupDao.markAsFailed(signup.id, "Profile update failed")
+                                }
+                            }
+                    }
+                }
+                .addOnFailureListener { e ->
+                    android.util.Log.e(TAG, "❌ Firebase Auth creation failed: ${e.message}")
+                    
+                    lifecycleScope.launch {
+                        val errorMsg = if (e.message?.contains("email address is already in use") == true) {
+                            android.util.Log.w(TAG, "⚠️ Email already exists, marking as completed: ${signup.email}")
+                            // Email already exists - consider it completed
+                            pendingSignupDao.markAsCompleted(signup.id)
+                            return@launch
+                        } else {
+                            e.message ?: "Unknown error"
+                        }
+                        
+                        pendingSignupDao.markAsFailed(signup.id, errorMsg)
+                    }
+                }
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "❌ Exception processing queued signup: ${e.message}", e)
+            pendingSignupDao.markAsFailed(signup.id, e.message ?: "Unknown error")
         }
     }
 }
